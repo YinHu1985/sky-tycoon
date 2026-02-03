@@ -203,6 +203,34 @@ const getBuiltInModifiers = (company, target, context) => {
     }
   }
 
+  // Maintenance Center cost reduction for flights
+  if (target === 'maintenanceCost' && (context.sourceId || context.targetId)) {
+    const maintReduction = getMaintenanceCenterReduction(company, context.sourceId, context.targetId);
+    if (maintReduction > 0) {
+      modifiers.push({
+        source: 'maintenanceCenter',
+        type: 'multiplier',
+        target: 'maintenanceCost',
+        value: 1 - maintReduction,
+        description: `Maintenance Center (-${(maintReduction * 100).toFixed(0)}%)`
+      });
+    }
+  }
+
+  // Airline Meal Factory service cost reduction for flights
+  if (target === 'flightCost' && (context.sourceId || context.targetId)) {
+    const serviceReduction = getServiceCostReduction(company, context.sourceId, context.targetId);
+    if (serviceReduction > 0) {
+      modifiers.push({
+        source: 'mealFactory',
+        type: 'multiplier',
+        target: 'flightCost',
+        value: 1 - serviceReduction,
+        description: `Meal Factory (-${(serviceReduction * 100).toFixed(0)}%)`
+      });
+    }
+  }
+
   return modifiers;
 };
 
@@ -312,7 +340,7 @@ const getPropertyLoadFactorBonus = (company, sourceId, targetId) => {
   const sourceProps = company.properties.filter(p => p.cityId === sourceId);
   sourceProps.forEach(prop => {
     const propType = PROPERTY_TYPES[prop.type];
-    if (propType) {
+    if (propType && propType.loadFactorBonus) {
       bonus += propType.loadFactorBonus;
     }
   });
@@ -321,7 +349,7 @@ const getPropertyLoadFactorBonus = (company, sourceId, targetId) => {
   const targetProps = company.properties.filter(p => p.cityId === targetId);
   targetProps.forEach(prop => {
     const propType = PROPERTY_TYPES[prop.type];
-    if (propType) {
+    if (propType && propType.loadFactorBonus) {
       bonus += propType.loadFactorBonus;
     }
   });
@@ -330,8 +358,80 @@ const getPropertyLoadFactorBonus = (company, sourceId, targetId) => {
 };
 
 /**
+ * Get maintenance cost reduction from Maintenance Centers
+ *
+ * @param {Object} company - Company state
+ * @param {string} sourceId - Source city ID
+ * @param {string} targetId - Target city ID
+ * @returns {number} Maintenance cost reduction multiplier (0-1)
+ */
+const getMaintenanceCenterReduction = (company, sourceId, targetId) => {
+  if (!company.properties) return 0;
+
+  let maxReduction = 0;
+
+  // Check if source city has a maintenance center
+  const sourceProps = company.properties.filter(p => p.cityId === sourceId);
+  sourceProps.forEach(prop => {
+    const propType = PROPERTY_TYPES[prop.type];
+    if (propType && propType.maintReduction) {
+      maxReduction = Math.max(maxReduction, propType.maintReduction);
+    }
+  });
+
+  // Check if target city has a maintenance center
+  if (targetId) {
+    const targetProps = company.properties.filter(p => p.cityId === targetId);
+    targetProps.forEach(prop => {
+      const propType = PROPERTY_TYPES[prop.type];
+      if (propType && propType.maintReduction) {
+        maxReduction = Math.max(maxReduction, propType.maintReduction);
+      }
+    });
+  }
+
+  return maxReduction;
+};
+
+/**
+ * Get service cost reduction from Airline Meal Factories
+ *
+ * @param {Object} company - Company state
+ * @param {string} sourceId - Source city ID
+ * @param {string} targetId - Target city ID
+ * @returns {number} Service cost reduction multiplier (0-1)
+ */
+const getServiceCostReduction = (company, sourceId, targetId) => {
+  if (!company.properties) return 0;
+
+  let maxReduction = 0;
+
+  // Check if source city has a meal factory
+  const sourceProps = company.properties.filter(p => p.cityId === sourceId);
+  sourceProps.forEach(prop => {
+    const propType = PROPERTY_TYPES[prop.type];
+    if (propType && propType.serviceReduction) {
+      maxReduction = Math.max(maxReduction, propType.serviceReduction);
+    }
+  });
+
+  // Check if target city has a meal factory
+  if (targetId) {
+    const targetProps = company.properties.filter(p => p.cityId === targetId);
+    targetProps.forEach(prop => {
+      const propType = PROPERTY_TYPES[prop.type];
+      if (propType && propType.serviceReduction) {
+        maxReduction = Math.max(maxReduction, propType.serviceReduction);
+      }
+    });
+  }
+
+  return maxReduction;
+};
+
+/**
  * Calculate weekly income and costs for all properties
- * Includes competition penalty for multiple properties in same city
+ * No longer has competition penalty since only one of each type per city is allowed
  *
  * @param {Object} company - Company state
  * @returns {Object} { properties: updatedProperties[], totalPropertyIncome, totalPropertyCost }
@@ -348,12 +448,6 @@ export const calculatePropertyFinancials = (company) => {
   let totalIncome = 0;
   let totalCost = 0;
 
-  // Count properties per city (for competition calculation)
-  const cityCounts = {};
-  company.properties.forEach(prop => {
-    cityCounts[prop.cityId] = (cityCounts[prop.cityId] || 0) + 1;
-  });
-
   // Calculate for each property
   const updatedProperties = company.properties.map(prop => {
     const city = CITIES.find(c => c.id === prop.cityId);
@@ -362,15 +456,13 @@ export const calculatePropertyFinancials = (company) => {
     const propType = PROPERTY_TYPES[prop.type];
     if (!propType) return { ...prop, weeklyIncome: 0, weeklyMaintCost: 0 };
 
-    const cityValue = (city.biz + city.tour) * 100000; // Normalize city economic value
+    // Calculate income based on separate multipliers for biz and tour
+    const bizIncome = city.biz * 100000 * (propType.bizMultiplier || 0);
+    const tourIncome = city.tour * 100000 * (propType.tourMultiplier || 0);
+    let income = bizIncome + tourIncome;
 
-    // Base income/cost
-    let income = cityValue * propType.incomeMultiplier;
-    let cost = cityValue * propType.maintMultiplier;
-
-    // Competition penalty: Each additional property in same city reduces income by 10%
-    const competitionPenalty = Math.max(0, (cityCounts[prop.cityId] - 1) * 0.1);
-    income *= (1 - competitionPenalty);
+    // Fixed maintenance cost (not related to city attributes)
+    const cost = propType.fixedMaintCost || 0;
 
     // Apply modifiers
     const incomeModifiers = getModifiersForTarget(company, 'propertyIncome', { cityId: prop.cityId });

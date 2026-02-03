@@ -6,15 +6,16 @@ import { PLANE_TYPES } from '../../data/planes';
 import { PROPERTY_TYPES } from '../../data/properties';
 import { calculateCityRelationship } from '../../lib/modifiers';
 import { formatMoney } from '../../lib/utils';
-import { Building, Plane, Heart, Building2, Briefcase, Plus } from 'lucide-react';
+import { Building, Plane, Heart, Building2, Briefcase, Plus, Bus, UtensilsCrossed, Wrench, X } from 'lucide-react';
 
 export const CityDetails = ({ cityId }) => {
   const city = CITIES.find(c => c.id === cityId);
 
-  const { company, routes, buyProperty } = useGameStore(useShallow(state => ({
+  const { company, routes, buyProperty, sellProperty } = useGameStore(useShallow(state => ({
     company: state.company,
     routes: state.company.routes,
-    buyProperty: state.buyProperty
+    buyProperty: state.buyProperty,
+    sellProperty: state.sellProperty
   })));
 
   if (!city) return null;
@@ -37,8 +38,43 @@ export const CityDetails = ({ cityId }) => {
     useGameStore.getState().addNotification(`Purchased ${propConfig.name}!`, 'success');
   };
 
+  const handleSellProperty = (propertyId, propertyName, sellValue) => {
+    sellProperty(propertyId);
+    useGameStore.getState().addNotification(
+      `Sold ${propertyName} for ${formatMoney(sellValue)}`,
+      'success'
+    );
+  };
+
+  const getPropertyIcon = (iconName) => {
+    switch(iconName) {
+      case 'Building2': return Building2;
+      case 'Briefcase': return Briefcase;
+      case 'Bus': return Bus;
+      case 'UtensilsCrossed': return UtensilsCrossed;
+      case 'Wrench': return Wrench;
+      default: return Building;
+    }
+  };
+
   return (
     <div className="w-[350px] flex flex-col gap-4">
+      {/* City Image Header */}
+      {city.image && (
+        <div className="relative rounded-lg overflow-hidden">
+          <img
+            src={city.image}
+            alt={city.name}
+            loading="lazy"
+            className="w-full h-36 object-cover bg-slate-800"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent" />
+          <h2 className="absolute bottom-2 left-3 text-2xl font-bold text-white drop-shadow-lg">
+            {city.name}
+          </h2>
+        </div>
+      )}
+
       {/* Header Info */}
       <div className="bg-slate-700 p-4 rounded border border-slate-600">
         <div className="grid grid-cols-2 gap-4">
@@ -80,16 +116,31 @@ export const CityDetails = ({ cityId }) => {
           <div className="space-y-2">
             {cityProperties.map(prop => {
               const propType = PROPERTY_TYPES[prop.type];
-              const Icon = propType.icon === 'Building2' ? Building2 : Briefcase;
+              const Icon = getPropertyIcon(propType.icon);
+              const sellValue = prop.purchaseCost * 0.5;
+              const netIncome = (prop.weeklyIncome || 0) - (prop.weeklyMaintCost || 0);
+
               return (
                 <div key={prop.id} className="bg-slate-700 p-2 rounded border border-slate-600 text-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon size={14} className="text-sky-400" />
-                    <span className="font-bold text-white">{propType.name}</span>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <Icon size={14} className="text-sky-400" />
+                      <span className="font-bold text-white">{propType.name}</span>
+                    </div>
+                    <button
+                      onClick={() => handleSellProperty(prop.id, propType.name, sellValue)}
+                      className="p-1 bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                      title={`Sell for ${formatMoney(sellValue)}`}
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
                   <div className="text-xs text-slate-400 flex justify-between">
                     <span>Income: {formatMoney(prop.weeklyIncome || 0)}/wk</span>
                     <span>Cost: {formatMoney(prop.weeklyMaintCost || 0)}/wk</span>
+                  </div>
+                  <div className="text-xs font-bold mt-1" style={{ color: netIncome >= 0 ? '#4ade80' : '#f87171' }}>
+                    Net: {formatMoney(netIncome)}/wk
                   </div>
                 </div>
               );
@@ -107,8 +158,27 @@ export const CityDetails = ({ cityId }) => {
         <h4 className="font-bold text-white mb-2">Available Properties</h4>
         <div className="space-y-2">
           {Object.values(PROPERTY_TYPES).map(propType => {
-            const Icon = propType.icon === 'Building2' ? Building2 : Briefcase;
+            const Icon = getPropertyIcon(propType.icon);
             const canAfford = company.money >= propType.baseCost;
+            const alreadyOwned = cityProperties.some(p => p.type === propType.id);
+
+            // Skip if already owned
+            if (alreadyOwned) {
+              return (
+                <div key={propType.id} className="bg-slate-800/50 p-3 rounded border border-slate-600 opacity-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <Icon size={16} className="text-slate-500" />
+                      <span className="font-bold text-slate-400">{propType.name}</span>
+                    </div>
+                    <span className="text-slate-500 font-mono text-xs">
+                      Owned
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">{propType.description}</p>
+                </div>
+              );
+            }
 
             return (
               <div key={propType.id} className="bg-slate-700 p-3 rounded border border-slate-600">
@@ -121,7 +191,31 @@ export const CityDetails = ({ cityId }) => {
                     {formatMoney(propType.baseCost)}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mb-2">{propType.description}</p>
+                <p className="text-xs text-slate-400 mb-1">{propType.description}</p>
+
+                {/* Show property stats */}
+                <div className="text-xs text-slate-400 mb-2 space-y-0.5">
+                  {propType.bizMultiplier > 0 && (
+                    <div>Business income: {(propType.bizMultiplier * 100).toFixed(2)}%</div>
+                  )}
+                  {propType.tourMultiplier > 0 && (
+                    <div>Tourism income: {(propType.tourMultiplier * 100).toFixed(2)}%</div>
+                  )}
+                  <div>Weekly cost: {formatMoney(propType.fixedMaintCost)}</div>
+                  {propType.loadFactorBonus > 0 && (
+                    <div className="text-green-400">+{(propType.loadFactorBonus * 100).toFixed(0)}% load factor</div>
+                  )}
+                  {propType.relationshipBonus > 0 && (
+                    <div className="text-pink-400">+{propType.relationshipBonus} relationship</div>
+                  )}
+                  {propType.maintReduction > 0 && (
+                    <div className="text-purple-400">-{(propType.maintReduction * 100).toFixed(0)}% flight maintenance</div>
+                  )}
+                  {propType.serviceReduction > 0 && (
+                    <div className="text-cyan-400">-{(propType.serviceReduction * 100).toFixed(0)}% flight operations</div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => handleBuyProperty(propType.id)}
                   disabled={!canAfford}

@@ -155,6 +155,16 @@ export const useGameStore = create((set, get) => ({
 
   // Property Management
   buyProperty: (type, cityId, cost) => set(state => {
+    // Check if company already owns this type of property in this city
+    const alreadyOwned = state.company.properties.some(
+      p => p.type === type && p.cityId === cityId
+    );
+
+    if (alreadyOwned) {
+      get().addNotification('You already own this type of property in this city', 'error');
+      return state;
+    }
+
     const newProperty = {
       id: generateId(),
       type,

@@ -88,17 +88,27 @@ export const FleetManager = () => {
             const idle = Math.max(0, count - assigned);
 
             return (
-              <div key={typeId} className="bg-slate-700 p-3 rounded border border-slate-600">
-                <div className="font-bold text-lg">{type.name}</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-mono text-green-400">{count}</span>
-                  <span className="text-xs text-slate-400">owned</span>
-                </div>
-                {idle > 0 && (
-                  <div className="text-xs text-amber-400 mt-1">
-                    {idle} idle • {formatMoney(idle * type.idle)}/wk cost
-                  </div>
+              <div key={typeId} className="bg-slate-700 rounded border border-slate-600 overflow-hidden">
+                {type.image && (
+                  <img
+                    src={type.image}
+                    alt={type.name}
+                    loading="lazy"
+                    className="w-full h-24 object-contain bg-slate-800"
+                  />
                 )}
+                <div className="p-3">
+                  <div className="font-bold text-lg">{type.name}</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-mono text-green-400">{count}</span>
+                    <span className="text-xs text-slate-400">owned</span>
+                  </div>
+                  {idle > 0 && (
+                    <div className="text-xs text-amber-400 mt-1">
+                      {idle} idle • {formatMoney(idle * type.idle)}/wk cost
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -116,31 +126,45 @@ export const FleetManager = () => {
         </h3>
         <div className="space-y-4">
           {availablePlanes.map(plane => (
-            <div key={plane.id} className="bg-slate-700 p-4 rounded border border-slate-600 flex justify-between items-center hover:bg-slate-600 transition-colors">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-lg text-white">{plane.name}</span>
-                  <span className="text-xs px-2 py-0.5 bg-slate-800 rounded text-slate-300">{plane.vendor}</span>
-                </div>
-                <div className="text-sm text-slate-300 mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
-                  <span>Range: {plane.range}km</span>
-                  <span>Speed: {plane.speed}km/h</span>
-                  <span>Seats: {plane.capacity}</span>
-                  <span>Maint: {formatMoney(plane.maint)}/wk</span>
-                </div>
-                <div className="text-xs text-slate-400 mt-2 italic">{plane.desc}</div>
-              </div>
+            <div key={plane.id} className="bg-slate-700 rounded border border-slate-600 overflow-hidden hover:bg-slate-600 transition-colors">
+              <div className="flex">
+                {plane.image && (
+                  <div className="bg-slate-800 w-48 flex items-center justify-center flex-shrink-0">
+                    <img
+                      src={plane.image}
+                      alt={plane.name}
+                      loading="lazy"
+                      className="w-full h-auto object-contain p-2"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 p-4 flex justify-between items-center">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-lg text-white">{plane.name}</span>
+                      <span className="text-xs px-2 py-0.5 bg-slate-800 rounded text-slate-300">{plane.vendor}</span>
+                    </div>
+                    <div className="text-sm text-slate-300 mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
+                      <span>Range: {plane.range}km</span>
+                      <span>Speed: {plane.speed}km/h</span>
+                      <span>Seats: {plane.capacity}</span>
+                      <span>Maint: {formatMoney(plane.maint)}/wk</span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-2 italic">{plane.desc}</div>
+                  </div>
 
-              <div className="flex flex-col items-end gap-2 ml-4">
-                <div className="text-xl font-mono text-green-400 font-bold">{formatMoney(plane.price)}</div>
-                <button
-                  onClick={() => handleBuyPlane(plane)}
-                  disabled={money < plane.price}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 rounded font-bold text-white transition-colors flex items-center gap-2 disabled:cursor-not-allowed"
-                >
-                  <Plane size={16} />
-                  Order
-                </button>
+                  <div className="flex flex-col items-end gap-2 ml-4">
+                    <div className="text-xl font-mono text-green-400 font-bold">{formatMoney(plane.price)}</div>
+                    <button
+                      onClick={() => handleBuyPlane(plane)}
+                      disabled={money < plane.price}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 rounded font-bold text-white transition-colors flex items-center gap-2 disabled:cursor-not-allowed"
+                    >
+                      <Plane size={16} />
+                      Order
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}

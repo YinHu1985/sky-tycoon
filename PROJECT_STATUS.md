@@ -4,24 +4,38 @@
 
 ### New Features Added ✨
 
-#### Reputation & Management System (Latest)
-1. **Company Fame System** - 0-100 scale affecting passenger demand and load factors
-2. **Maintenance Effort** - Adjustable 0-100% affecting costs, fame, and future accident risk
-3. **Service Quality** - Adjustable 0-100% affecting flight costs and fame
-4. **PR & Advertisement** - Weekly budget to boost company fame
-5. **Extensible Modifier System** - Support for event-based modifiers (CEO bonuses, crises, etc.)
-6. **Company-City Relationships** - Dynamic relationships based on HQ, routes, and properties
-7. **Property Ownership** - Buy hotels and travel agencies in cities for income and bonuses
-8. **Property Benefits** - Generate weekly income and improve route performance
+#### Property System Overhaul (Latest - Feb 4, 2026)
+1. **Strategic Property Portfolio** - 6 distinct building types with unique purposes
+2. **Separated Income Calculations** - Properties now have separate business and tourism income multipliers
+3. **Fixed Operating Costs** - Properties have consistent weekly costs, income scales with city attributes
+4. **One Building Per Type Per City** - Strategic limitation forces careful city selection
+5. **Building Types**:
+   - **Business Hotel** - Income-focused, high business demand scaling
+   - **Luxury Hotel** - Balanced income from both business and tourism
+   - **Travel Agency** - Pure tourism income, highest load factor bonus
+   - **Airport Transport** - Pure cost, massive relationship boost
+   - **Airline Meal Factory** - Reduces flight operation costs by 10%, improved load factor
+   - **Maintenance Center** - Expensive hub facility, reduces flight maintenance costs by 15%
+6. **Property Management** - Sell any property for 50% of purchase price
+7. **Cost Reduction Facilities** - Maintenance Centers and Meal Factories create strategic hub advantages
+
+#### Reputation & Management System
+8. **Company Fame System** - 0-100 scale affecting passenger demand and load factors
+9. **Maintenance Effort** - Adjustable 0-100% affecting costs, fame, and future accident risk
+10. **Service Quality** - Adjustable 0-100% affecting flight costs and fame
+11. **PR & Advertisement** - Weekly budget to boost company fame
+12. **Extensible Modifier System** - Support for event-based modifiers (CEO bonuses, crises, etc.)
+13. **Company-City Relationships** - Dynamic relationships based on HQ, routes, and properties
+14. **Property Benefits** - Generate weekly income and improve route performance
 
 #### Previous Features
-9. **City Details Window** - Click any city to see information and connected routes
-10. **Map Selection Mode** - Click map pin icons to select cities directly from the map when planning routes
-11. **Route Editing** - Edit button on each route to modify aircraft count and pricing
-12. **Route Details View** - Comprehensive route statistics, performance metrics, and cost breakdown
-13. **Geodesic Route Rendering** - Routes now follow proper great circle paths on the map
-14. **Infinite Horizontal Scrolling** - Map wraps seamlessly east/west for better navigation
-15. **Map Zoom Controls** - Zoom in/out buttons with smart limits
+15. **City Details Window** - Click any city to see information and connected routes
+16. **Map Selection Mode** - Click map pin icons to select cities directly from the map when planning routes
+17. **Route Editing** - Edit button on each route to modify aircraft count and pricing
+18. **Route Details View** - Comprehensive route statistics, performance metrics, and cost breakdown
+19. **Geodesic Route Rendering** - Routes now follow proper great circle paths on the map
+20. **Infinite Horizontal Scrolling** - Map wraps seamlessly east/west for better navigation
+21. **Map Zoom Controls** - Zoom in/out buttons with smart limits
 
 ### Bug Fixes 🐛
 1. **Fleet Count Issue** - Fixed: Buying multiple planes now correctly increases fleet count
@@ -156,11 +170,20 @@
 - [x] **Company-City Relationships** - 0-100 scale per city
   - Calculated from: HQ location, routes, properties, proximity
   - Affects load factors (0 = 0.85x, 100 = 1.15x)
-- [x] **Property Ownership** - Buy hotels and travel agencies
-  - Hotels: $5M, higher income, +5 relationship, +3% load factor
-  - Travel Agencies: $2M, lower income, +8 relationship, +5% load factor
-  - Income based on city business/tourism values
-  - Competition penalty: Multiple properties in same city reduce income by 10% each
+- [x] **Property Ownership System** - Strategic building portfolio with 6 types
+  - **One building per type per city** - Forces strategic city selection
+  - **Sell properties** - Recover 50% of purchase cost anytime
+  - **Income Properties** (generate revenue):
+    - **Business Hotel**: $4M, 2.5% biz income + 0.5% tour income, $80k/wk cost, +3% load factor, +5 relationship
+    - **Luxury Hotel**: $6M, 1.5% biz income + 1.5% tour income, $100k/wk cost, +4% load factor, +8 relationship
+    - **Travel Agency**: $2M, 2.5% tour income, $40k/wk cost, +5% load factor, +10 relationship
+  - **Cost-Reduction Facilities** (operational savings):
+    - **Airport Transport**: $3M, $150k/wk cost, +2% load factor, +15 relationship
+    - **Airline Meal Factory**: $5M, $150k/wk cost, **-10% flight operation costs**, +4% load factor, +5 relationship
+    - **Maintenance Center**: $15M, $300k/wk cost, **-15% flight maintenance costs**, +3 relationship
+  - **Separated multipliers**: Business and tourism income calculated independently
+  - **Fixed costs**: Property maintenance costs independent of city size
+  - **Hub strategy**: Build cost-reduction facilities in high-traffic hubs for maximum savings
 - [x] **Extensible Modifier System**
   - Support for event-based modifiers (CEO bonuses, fuel crises, etc.)
   - Modifiers can target: loadFactor, revenue, costs, fame, demand, relationship
@@ -401,6 +424,87 @@ The following modifiers are calculated automatically (not stored):
 - Company-city relationship effects
 - Property bonuses
 
+## Property System Architecture
+
+### Overview
+The property system allows companies to invest in city infrastructure for strategic benefits. Properties can generate income, reduce operational costs, or boost relationships and load factors. All properties are limited to **one per type per city** to encourage strategic placement decisions.
+
+### Property Categories
+
+#### 1. Income-Generating Properties
+These properties generate weekly revenue based on city attributes:
+- **Business Hotel**: Focuses on business demand (2.5% biz, 0.5% tour)
+- **Luxury Hotel**: Balanced income from both markets (1.5% biz, 1.5% tour)
+- **Travel Agency**: Pure tourism play (2.5% tour)
+
+**Income Formula**: `(city.biz * 100000 * bizMultiplier) + (city.tour * 100000 * tourMultiplier) - fixedMaintCost`
+
+#### 2. Cost-Reduction Facilities
+These properties have no income but reduce flight operational costs:
+- **Maintenance Center**: Reduces maintenance costs by **15%** for all flights to/from the city
+- **Airline Meal Factory**: Reduces flight operation costs by **10%** for all flights to/from the city
+- **Airport Transport**: Pure cost, but provides massive relationship boost (+15)
+
+**Strategic Value**: Build in high-traffic hub cities to maximize savings. A maintenance center in a hub with 20 weekly flights can save more than its weekly cost.
+
+### Property Mechanics
+
+#### Purchase & Ownership
+```javascript
+// Purchase (one per type per city enforced)
+buyProperty(propertyType, cityId, cost);
+
+// Sell for 50% value
+sellProperty(propertyId);  // Returns 50% of purchaseCost
+```
+
+#### Cost Reduction Implementation
+Both maintenance centers and meal factories automatically apply their benefits:
+- Checked in `getBuiltInModifiers()` in `/src/lib/modifiers.js`
+- Applied as multipliers (0.85 for 15% reduction, 0.90 for 10% reduction)
+- Works for both source and target cities (if either has facility, benefit applies)
+- Uses `Math.max()` to prevent stacking multiple facilities of same type
+
+#### Financial Processing
+Properties are processed weekly in `calculatePropertyFinancials()`:
+1. Calculate business income: `city.biz * 100000 * bizMultiplier`
+2. Calculate tourism income: `city.tour * 100000 * tourMultiplier`
+3. Apply fixed maintenance cost
+4. Apply any event-based modifiers to income
+5. Return updated property objects with `weeklyIncome` and `weeklyMaintCost`
+
+### Property Stats Summary
+
+| Property | Cost | Weekly Cost | Income/Benefit | Load Factor | Relationship |
+|----------|------|-------------|----------------|-------------|--------------|
+| Business Hotel | $4M | $80k | 2.5% biz, 0.5% tour | +3% | +5 |
+| Luxury Hotel | $6M | $100k | 1.5% biz, 1.5% tour | +4% | +8 |
+| Travel Agency | $2M | $40k | 2.5% tour | +5% | +10 |
+| Airport Transport | $3M | $150k | Pure cost | +2% | +15 |
+| Meal Factory | $5M | $150k | -10% flight ops | +4% | +5 |
+| Maintenance Center | $15M | $300k | -15% maintenance | 0% | +3 |
+
+### Strategic Considerations
+
+1. **Income Properties**: Best in high-demand cities (NYC, London, Dubai)
+   - Business Hotels excel in financial centers (biz 85+)
+   - Travel Agencies excel in tourist destinations (tour 85+)
+   - Luxury Hotels work well in balanced cities
+
+2. **Cost-Reduction Facilities**: Best in hub cities with many routes
+   - Maintenance Centers: Essential for hubs with 15+ weekly flights
+   - Meal Factories: Good for medium hubs with 10+ weekly flights
+   - Calculate ROI: (weekly savings vs weekly cost)
+
+3. **Relationship Boosters**: Airport Transport for strategic cities
+   - Use to unlock better load factors in important markets
+   - Synergizes with routes and properties for compound benefits
+
+4. **One Per Type Limit**: Plan your network carefully
+   - Can't spam properties in every city
+   - Must choose optimal locations for each type
+   - Creates meaningful strategic decisions
+
 ## Next Steps
 
 ### Immediate (Ready to Play)
@@ -412,12 +516,12 @@ The following modifiers are calculated automatically (not stored):
 
 ### Future Enhancements
 6. **Random Events System** - Use modifier system for fuel crises, CEO changes, disasters
-7. Add more property types (office buildings, maintenance facilities, training centers)
-8. Add more cities (expand from 16 to 50+ airports)
-9. Add world map background image
-10. Implement bankruptcy/game over detection
-11. Add aircraft resale functionality
-12. Add achievements and milestones (use modifier rewards)
+7. Add more cities (expand from 16 to 50+ airports)
+8. Add world map background image
+9. Implement bankruptcy/game over detection
+10. Add aircraft resale functionality
+11. Add achievements and milestones (use modifier rewards)
+12. Add more property types (if needed - cargo terminals, flight schools, etc.)
 
 ### Polish
 13. Enhance UI animations and transitions
