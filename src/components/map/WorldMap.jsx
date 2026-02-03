@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { CITIES } from '../../data/cities';
+import { MAP_IMAGE_URL } from '../../data/constants';
 import { MAP_WIDTH, MAP_HEIGHT, geoToPixel, getGreatCircleSegments } from '../../lib/utils';
 import { useGameStore } from '../../store/useGameStore';
 
@@ -27,7 +28,7 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
 
   useEffect(() => {
     const img = new Image();
-    img.src = "/WorldMap.png";
+    img.src = MAP_IMAGE_URL;
     img.onload = () => setMapImage(img);
   }, []);
 

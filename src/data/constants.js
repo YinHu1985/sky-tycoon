@@ -6,4 +6,4 @@ export const MAP_HEIGHT = 1000;
 export const SAVE_KEY = 'airline_tycoon_save_v2';
 
 // Map image URL - fallback to a solid color if not available
-export const MAP_IMAGE_URL = '/WorldMap.png';
+export const MAP_IMAGE_URL = 'WorldMap.png';
