@@ -1,0 +1,18 @@
+export const CITIES = [
+  { id: 'nyc', name: 'New York', lat: 40.71, lon: -74.00, biz: 95, tour: 80, country: 'USA' },
+  { id: 'lon', name: 'London', lat: 51.50, lon: -0.12, biz: 90, tour: 85, country: 'UK' },
+  { id: 'par', name: 'Paris', lat: 48.85, lon: 2.35, biz: 80, tour: 95, country: 'France' },
+  { id: 'tok', name: 'Tokyo', lat: 35.67, lon: 139.65, biz: 88, tour: 70, country: 'Japan' },
+  { id: 'hkg', name: 'Hong Kong', lat: 22.31, lon: 114.16, biz: 92, tour: 75, country: 'Hong Kong' },
+  { id: 'sin', name: 'Singapore', lat: 1.35, lon: 103.81, biz: 85, tour: 70, country: 'Singapore' },
+  { id: 'syd', name: 'Sydney', lat: -33.86, lon: 151.20, biz: 70, tour: 80, country: 'Australia' },
+  { id: 'rio', name: 'Rio de Janeiro', lat: -22.90, lon: -43.17, biz: 50, tour: 90, country: 'Brazil' },
+  { id: 'cai', name: 'Cairo', lat: 30.04, lon: 31.23, biz: 55, tour: 85, country: 'Egypt' },
+  { id: 'dxb', name: 'Dubai', lat: 25.20, lon: 55.27, biz: 40, tour: 30, country: 'UAE' }, 
+  { id: 'lax', name: 'Los Angeles', lat: 34.05, lon: -118.24, biz: 75, tour: 85, country: 'USA' },
+  { id: 'bom', name: 'Mumbai', lat: 19.07, lon: 72.87, biz: 65, tour: 60, country: 'India' },
+  { id: 'mos', name: 'Moscow', lat: 55.75, lon: 37.61, biz: 70, tour: 60, country: 'USSR' },
+  { id: 'pek', name: 'Beijing', lat: 39.90, lon: 116.40, biz: 80, tour: 80, country: 'China' },
+  { id: 'jnb', name: 'Johannesburg', lat: -26.20, lon: 28.04, biz: 60, tour: 50, country: 'South Africa' },
+  { id: 'bue', name: 'Buenos Aires', lat: -34.60, lon: -58.38, biz: 60, tour: 75, country: 'Argentina' },
+];

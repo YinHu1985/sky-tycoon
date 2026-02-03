@@ -1,0 +1,178 @@
+import React, { useState } from 'react';
+import { useGameStore } from './store/useGameStore';
+import { useGameLoop } from './hooks/useGameLoop';
+import { MainMenu } from './components/ui/MainMenu';
+import { WorldMap } from './components/map/WorldMap';
+import { Dashboard } from './components/ui/Dashboard';
+import { GameWindow } from './components/layout/GameWindow';
+import { FleetManager } from './components/game/FleetManager';
+import { RouteManager } from './components/game/RouteManager';
+import { FinancialReport } from './components/game/FinancialReport';
+import { CityDetails } from './components/game/CityDetails';
+import { RouteDetails } from './components/game/RouteDetails';
+import { CompanyManagement } from './components/game/CompanyManagement';
+import { Settings } from 'lucide-react';
+
+function App() {
+  useGameLoop(); // Start game loop
+
+  const gameStarted = useGameStore(state => state.gameStarted);
+  const notifications = useGameStore(state => state.notifications);
+  const debugUnlockAll = useGameStore(state => state.debugUnlockAll);
+  const setDebugUnlockAll = useGameStore(state => state.setDebugUnlockAll);
+  const saveGame = useGameStore(state => state.saveGame);
+
+  const [openWindows, setOpenWindows] = useState([]);
+  const [activeWindowId, setActiveWindowId] = useState(null);
+  const [selectedCity, setSelectedCity] = useState(null);
+  const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [mapSelectionMode, setMapSelectionMode] = useState(null); // { type: 'route', onSelect: (cityId) => void }
+
+  const handleOpenWindow = (id) => {
+    if (!openWindows.includes(id)) {
+      setOpenWindows([...openWindows, id]);
+    }
+    setActiveWindowId(id);
+  };
+
+  const handleCloseWindow = (id) => {
+    setOpenWindows(openWindows.filter(w => w !== id));
+    if (activeWindowId === id) setActiveWindowId(null);
+    // Clear selections when closing windows
+    if (id === 'city-details') setSelectedCity(null);
+    if (id === 'route-details') setSelectedRouteId(null);
+  };
+
+  const handleOpenRouteDetails = (routeId) => {
+    setSelectedRouteId(routeId);
+    handleOpenWindow('route-details');
+  };
+
+  const handleCityClick = (city) => {
+    // If in selection mode, handle selection callback
+    if (mapSelectionMode) {
+      mapSelectionMode.onSelect(city.id);
+      setMapSelectionMode(null); // Exit selection mode after selection
+      return;
+    }
+
+    // Otherwise, show city details
+    setSelectedCity(city);
+    handleOpenWindow('city-details');
+  };
+
+  if (!gameStarted) {
+    return <MainMenu />;
+  }
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 text-slate-200 select-none font-sans">
+      <WorldMap onCityClick={handleCityClick} selectionMode={mapSelectionMode} />
+
+      <Dashboard onOpenWindow={handleOpenWindow} />
+
+      {/* Windows Layer */}
+      {openWindows.map(id => {
+        let title = '';
+        let content = null;
+
+        switch (id) {
+          case 'fleet':
+            title = 'Fleet Management & Aircraft Market';
+            content = <FleetManager />;
+            break;
+          case 'routes':
+            title = 'Route Network';
+            content = <RouteManager onRequestCitySelection={setMapSelectionMode} onOpenRouteDetails={handleOpenRouteDetails} />;
+            break;
+          case 'finance':
+            title = 'Financial Report';
+            content = <FinancialReport />;
+            break;
+          case 'city-details':
+            title = selectedCity ? selectedCity.name : 'City Details';
+            content = selectedCity ? <CityDetails cityId={selectedCity.id} /> : null;
+            break;
+          case 'route-details':
+            title = 'Route Details & Configuration';
+            content = selectedRouteId ? <RouteDetails routeId={selectedRouteId} /> : null;
+            break;
+          case 'company':
+            title = 'Company Management';
+            content = <CompanyManagement />;
+            break;
+          case 'settings':
+            title = 'Settings';
+            content = (
+              <div className="space-y-4 w-[400px]">
+                <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+                  <span>Manual Save</span>
+                  <button
+                    onClick={() => saveGame()}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-1"
+                  >
+                    💾 Save Game
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Sandbox Mode (Unlock All Planes)</span>
+                  <button
+                    onClick={() => setDebugUnlockAll(!debugUnlockAll)}
+                    className={`w-12 h-6 rounded-full transition-colors ${debugUnlockAll ? 'bg-green-600' : 'bg-slate-600'} relative`}
+                  >
+                    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${debugUnlockAll ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500">Ignores introduction and retirement years for aircraft.</p>
+              </div>
+            );
+            break;
+          default:
+            return null;
+        }
+
+        const zIndex = activeWindowId === id ? 50 : 40;
+
+        return (
+          <GameWindow
+            key={id}
+            title={title}
+            onClose={() => handleCloseWindow(id)}
+            x={100 + (openWindows.indexOf(id) * 30)}
+            y={100 + (openWindows.indexOf(id) * 30)}
+            zIndex={zIndex}
+            onFocus={() => setActiveWindowId(id)}
+          >
+            {content}
+          </GameWindow>
+        );
+      })}
+
+      {/* Settings Button */}
+      <button
+        onClick={() => handleOpenWindow('settings')}
+        className="fixed bottom-4 right-4 z-10 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white p-3 rounded-lg border border-slate-700 transition-colors"
+        title="Settings"
+      >
+        <Settings size={20} />
+      </button>
+
+      {/* Notifications Toast */}
+      <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-[100] pointer-events-none">
+        {notifications.map(n => (
+          <div
+            key={n.id}
+            className={`bg-slate-800 text-white px-4 py-2 rounded shadow-lg border-l-4 pointer-events-auto animate-in slide-in-from-right-5 fade-in duration-300 ${
+              n.type === 'success' ? 'border-green-500' :
+              n.type === 'error' ? 'border-red-500' : 'border-blue-500'
+            }`}
+          >
+            {n.msg}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default App;
