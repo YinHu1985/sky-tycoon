@@ -176,7 +176,7 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
               e.stopPropagation();
               onCityClick(city);
             }}
-            title={inSelectionMode ? `Click to select ${city.name}` : `${city.name} (${city.country})`}
+            title={inSelectionMode ? `Click to select ${city.name}` : city.name}
           />
         );
       })}
