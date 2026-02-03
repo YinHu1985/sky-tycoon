@@ -7,7 +7,7 @@ const initialCompany = {
   name: 'Skyways Int.',
   code: 'SKW',
   hq: 'nyc',
-  money: 500000000,
+  money: 50000000,
   fleet: {},
   routes: [],
   nextFlightNum: 10,
@@ -52,6 +52,12 @@ export const useGameStore = create((set, get) => ({
 
   // Tasks
   tasks: [],
+
+  // Event System
+  scheduledEvents: [],           // Events scheduled to happen on specific dates
+  firedOneTimeEvents: new Set(), // IDs of one-time events that have already fired
+  pendingEvents: [],             // Events waiting to be displayed (queue)
+  activeEvent: null,             // Currently displayed event (or null)
 
   // UI State
   notifications: [],
@@ -185,12 +191,20 @@ export const useGameStore = create((set, get) => ({
   }),
 
   // Modifier Management (for events)
-  addModifier: (modifier) => set(state => ({
-    company: {
-      ...state.company,
-      activeModifiers: [...state.company.activeModifiers, { ...modifier, id: modifier.id || generateId() }]
-    }
-  })),
+  addModifier: (modifier) => set(state => {
+    const modifierId = modifier.id || generateId();
+    const newModifier = { ...modifier, id: modifierId };
+
+    // Remove any existing modifier with the same ID (prevent stacking)
+    const filteredModifiers = state.company.activeModifiers.filter(m => m.id !== modifierId);
+
+    return {
+      company: {
+        ...state.company,
+        activeModifiers: [...filteredModifiers, newModifier]
+      }
+    };
+  }),
 
   removeModifier: (modifierId) => set(state => ({
     company: {
@@ -215,6 +229,56 @@ export const useGameStore = create((set, get) => ({
     tasks: state.tasks.filter(t => t.id !== taskId)
   })),
 
+  // Event System Management
+  setScheduledEvents: (events) => set({ scheduledEvents: events }),
+
+  addScheduledEvent: (eventId, scheduledDate) => set(state => ({
+    scheduledEvents: [...state.scheduledEvents, { eventId, scheduledDate }]
+  })),
+
+  removeScheduledEvent: (eventId) => set(state => ({
+    scheduledEvents: state.scheduledEvents.filter(e => e.eventId !== eventId)
+  })),
+
+  markEventAsFired: (eventId) => set(state => {
+    const newSet = new Set(state.firedOneTimeEvents);
+    newSet.add(eventId);
+    return { firedOneTimeEvents: newSet };
+  }),
+
+  triggerEvent: (eventId) => set(state => {
+    // Add to pending events queue if not already there
+    if (!state.pendingEvents.includes(eventId)) {
+      return {
+        pendingEvents: [...state.pendingEvents, eventId],
+        paused: true // Pause game when event is triggered
+      };
+    }
+    return state;
+  }),
+
+  showNextEvent: () => set(state => {
+    if (state.pendingEvents.length === 0) return state;
+
+    const [nextEventId, ...remainingEvents] = state.pendingEvents;
+    return {
+      activeEvent: nextEventId,
+      pendingEvents: remainingEvents,
+      paused: true // Ensure game is paused
+    };
+  }),
+
+  dismissEvent: () => set({
+    activeEvent: null
+  }),
+
+  addMoney: (amount) => set(state => ({
+    company: {
+      ...state.company,
+      money: state.company.money + amount
+    }
+  })),
+
   // Save/Load
   saveGame: () => {
     const state = get();
@@ -222,7 +286,9 @@ export const useGameStore = create((set, get) => ({
       date: state.date.toISOString(),
       company: state.company,
       tasks: state.tasks,
-      debugUnlockAll: state.debugUnlockAll
+      debugUnlockAll: state.debugUnlockAll,
+      // Event system state (don't save scheduledEvents - recalculate on load)
+      firedOneTimeEvents: Array.from(state.firedOneTimeEvents)
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
     get().addNotification('Game Saved Successfully', 'success');
@@ -238,6 +304,10 @@ export const useGameStore = create((set, get) => ({
           company: data.company,
           tasks: data.tasks || [],
           debugUnlockAll: data.debugUnlockAll || false,
+          firedOneTimeEvents: new Set(data.firedOneTimeEvents || []),
+          scheduledEvents: [], // Will be recalculated in game loop
+          pendingEvents: [],
+          activeEvent: null,
           gameStarted: true,
           paused: true
         });
@@ -282,7 +352,12 @@ export const useGameStore = create((set, get) => ({
         hq: hq || 'nyc'
       },
       tasks: [],
-      notifications: []
+      notifications: [],
+      // Initialize event system
+      scheduledEvents: [],
+      firedOneTimeEvents: new Set(),
+      pendingEvents: [],
+      activeEvent: null
     });
   }
 }));

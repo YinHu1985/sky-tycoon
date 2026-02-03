@@ -3,6 +3,11 @@ import { useGameStore } from '../store/useGameStore';
 import { calculateWeeklyFinance } from '../lib/economy';
 import { expireModifiers } from '../lib/modifiers';
 import { formatMoney } from '../lib/utils';
+import {
+  scheduleEvents,
+  checkScheduledEvents,
+  removeScheduledEvents
+} from '../lib/eventSystem';
 
 const MS_PER_DAY_NORMAL = 200;
 
@@ -10,6 +15,8 @@ export const useGameLoop = () => {
   const lastUpdate = useRef(0);
   const accumulatedTime = useRef(0);
   const lastProcessedWeek = useRef(null);
+  const lastProcessedYear = useRef(null);
+  const eventsInitialized = useRef(false);
 
   useEffect(() => {
     lastUpdate.current = Date.now();
@@ -38,6 +45,43 @@ export const useGameLoop = () => {
           removeTask(task.id);
         }
       });
+    };
+
+    const processEvents = (currentDate) => {
+      const {
+        scheduledEvents,
+        triggerEvent,
+        showNextEvent,
+        setScheduledEvents
+      } = useGameStore.getState();
+
+      // Check if any scheduled events should fire today
+      const eventsToFire = checkScheduledEvents(currentDate, scheduledEvents);
+
+      if (eventsToFire.length > 0) {
+        // Trigger all events that should fire today
+        eventsToFire.forEach(eventId => {
+          triggerEvent(eventId);
+        });
+
+        // Remove fired events from schedule
+        const updatedSchedule = removeScheduledEvents(scheduledEvents, eventsToFire);
+        setScheduledEvents(updatedSchedule);
+
+        // Get fresh state after triggering events
+        const { activeEvent, pendingEvents } = useGameStore.getState();
+
+        // Show first event if none is currently active
+        if (!activeEvent && pendingEvents.length > 0) {
+          showNextEvent();
+        }
+      }
+    };
+
+    const rescheduleEvents = (currentDate) => {
+      const { firedOneTimeEvents, setScheduledEvents } = useGameStore.getState();
+      const newSchedule = scheduleEvents(currentDate, firedOneTimeEvents);
+      setScheduledEvents(newSchedule);
     };
 
     const processWeeklyFinance = () => {
@@ -90,6 +134,12 @@ export const useGameLoop = () => {
         return;
       }
 
+      // Initialize event system on first run
+      if (gameStarted && !eventsInitialized.current) {
+        eventsInitialized.current = true;
+        rescheduleEvents(date);
+      }
+
       if (!paused) {
         const timeScale = speed;
         accumulatedTime.current += delta * timeScale;
@@ -108,11 +158,21 @@ export const useGameLoop = () => {
           // Process tasks
           processTasks(newDate);
 
+          // Process events (check for scheduled events)
+          processEvents(newDate);
+
           // Weekly processing (check if week changed)
           const currentWeek = getWeekNumber(newDate);
           if (currentWeek !== lastProcessedWeek.current) {
             lastProcessedWeek.current = currentWeek;
             processWeeklyFinance();
+          }
+
+          // Yearly processing (reschedule events)
+          const currentYear = newDate.getFullYear();
+          if (currentYear !== lastProcessedYear.current) {
+            lastProcessedYear.current = currentYear;
+            rescheduleEvents(newDate);
           }
 
           // Auto-save on January 1st

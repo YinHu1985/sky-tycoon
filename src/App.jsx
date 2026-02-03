@@ -11,6 +11,8 @@ import { FinancialReport } from './components/game/FinancialReport';
 import { CityDetails } from './components/game/CityDetails';
 import { RouteDetails } from './components/game/RouteDetails';
 import { CompanyManagement } from './components/game/CompanyManagement';
+import { EventWindow } from './components/game/EventWindow';
+import AudioManager from './components/audio/AudioManager';
 import { Settings } from 'lucide-react';
 
 function App() {
@@ -21,12 +23,16 @@ function App() {
   const debugUnlockAll = useGameStore(state => state.debugUnlockAll);
   const setDebugUnlockAll = useGameStore(state => state.setDebugUnlockAll);
   const saveGame = useGameStore(state => state.saveGame);
+  const triggerEvent = useGameStore(state => state.triggerEvent);
+  const showNextEvent = useGameStore(state => state.showNextEvent);
+  const addNotification = useGameStore(state => state.addNotification);
 
   const [openWindows, setOpenWindows] = useState([]);
   const [activeWindowId, setActiveWindowId] = useState(null);
   const [selectedCity, setSelectedCity] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [mapSelectionMode, setMapSelectionMode] = useState(null); // { type: 'route', onSelect: (cityId) => void }
+  const [debugEventId, setDebugEventId] = useState(''); // For debug event triggering
 
   const handleOpenWindow = (id) => {
     if (!openWindows.includes(id)) {
@@ -104,7 +110,7 @@ function App() {
           case 'settings':
             title = 'Settings';
             content = (
-              <div className="space-y-4 w-[400px]">
+              <div className="space-y-4 w-[450px]">
                 <div className="flex items-center justify-between border-b border-slate-700 pb-2">
                   <span>Manual Save</span>
                   <button
@@ -124,6 +130,42 @@ function App() {
                   </button>
                 </div>
                 <p className="text-xs text-slate-500">Ignores introduction and retirement years for aircraft.</p>
+
+                {/* Debug Event Trigger */}
+                <div className="border-t border-slate-700 pt-4">
+                  <p className="text-sm font-semibold mb-2 text-yellow-400">🛠️ Debug Tools</p>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">Trigger Event by ID</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={debugEventId}
+                        onChange={(e) => setDebugEventId(e.target.value)}
+                        placeholder="e.g. welcome_1950"
+                        className="flex-1 bg-slate-700 text-white px-3 py-1 rounded text-sm border border-slate-600 focus:border-blue-500 outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          if (debugEventId.trim()) {
+                            triggerEvent(debugEventId.trim());
+                            // Show the event immediately
+                            setTimeout(() => showNextEvent(), 50);
+                            addNotification(`Triggered event: ${debugEventId}`, 'info');
+                            setDebugEventId('');
+                          } else {
+                            addNotification('Enter an event ID', 'error');
+                          }
+                        }}
+                        className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-1 rounded text-xs font-bold"
+                      >
+                        🎲 Trigger
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Available: welcome_1950, oil_crisis_1973, excellent_ceo_hired
+                    </p>
+                  </div>
+                </div>
               </div>
             );
             break;
@@ -148,6 +190,9 @@ function App() {
         );
       })}
 
+      {/* Background Music */}
+      <AudioManager />
+
       {/* Settings Button */}
       <button
         onClick={() => handleOpenWindow('settings')}
@@ -171,6 +216,9 @@ function App() {
           </div>
         ))}
       </div>
+
+      {/* Event System */}
+      <EventWindow />
     </div>
   );
 }
