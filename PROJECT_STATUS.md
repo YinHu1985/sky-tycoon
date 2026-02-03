@@ -4,7 +4,20 @@
 
 ### New Features Added ✨
 
-#### Property System Overhaul (Latest - Feb 4, 2026)
+#### Visual Assets - Plane & City Images (Latest - Feb 4, 2026)
+1. **Aircraft Photos** - All 47 aircraft types now have real photos from Wikimedia Commons
+   - Images displayed in Aircraft Market with proper vertical centering
+   - Thumbnail images shown in Your Fleet section
+   - Lazy loading for performance optimization
+2. **City Photos** - All 76 cities now have skyline/landmark photos
+   - Hero image header in City Details panel with gradient overlay
+   - City name overlaid on image for visual appeal
+3. **Image Processing** - Used ImageMagick for batch processing
+   - Planes: 400x250px with `object-contain` to show full aircraft
+   - Cities: 400x225px with `object-cover` for scenic headers
+4. **Download Script** - `scripts/download-images.mjs` for sourcing images from Wikimedia Commons
+
+#### Property System Overhaul (Feb 4, 2026)
 1. **Strategic Property Portfolio** - 6 distinct building types with unique purposes
 2. **Separated Income Calculations** - Properties now have separate business and tourism income multipliers
 3. **Fixed Operating Costs** - Properties have consistent weekly costs, income scales with city attributes
@@ -130,10 +143,15 @@
 8. **Constants File** (`src/data/constants.js`)
    - Centralized game constants
 
-9. **Preserved Assets**
-   - `cities.js` - 16 world cities with demand data
-   - `planes.js` - 47 historical aircraft (1936-2050)
+9. **Data Files**
+   - `cities.js` - 76 world cities with demand data and image paths
+   - `planes.js` - 47 historical aircraft (1936-2050) with image paths
    - `utils.js` - Geographic and formatting utilities
+
+10. **Visual Assets** (`public/`)
+    - `planes/` - 47 aircraft photos (400x250px JPG)
+    - `cities/` - 76 city skyline photos (400x225px JPG)
+    - `WorldMap.png` - World map background
 
 ## Game Features Status
 
@@ -203,45 +221,52 @@
 - [x] **Company Management Window** - Adjust efforts, view fame, manage reputation
 
 ### 📋 Not Yet Implemented
-- [ ] Canvas-based map rendering (currently SVG, works well for 16 cities)
+- [ ] Canvas-based map rendering (currently SVG, works well for current city count)
 - [ ] Aircraft retirement/resale
 - [ ] Bankruptcy detection and game over
 - [ ] Random events (fuel crises, disasters, opportunities)
 - [ ] Achievements and milestones
-- [ ] More cities (expand from 16 to 50+)
 
 ## Project Architecture
 ```
 src/
 ├── components/
 │   ├── game/
-│   │   ├── FleetManager.jsx      # Aircraft purchasing & management
+│   │   ├── FleetManager.jsx      # Aircraft purchasing & management (with images)
 │   │   ├── RouteManager.jsx      # Route creation with map selection
-│   │   ├── RouteDetails.jsx      # Route editor & statistics ✨
-│   │   ├── CityDetails.jsx       # City info, properties, relationship ✨ UPDATED
-│   │   ├── CompanyManagement.jsx # Fame & efforts management ✨ NEW
-│   │   └── FinancialReport.jsx   # Weekly financial breakdown ✨ UPDATED
+│   │   ├── RouteDetails.jsx      # Route editor & statistics
+│   │   ├── CityDetails.jsx       # City info, properties, relationship (with images)
+│   │   ├── CompanyManagement.jsx # Fame & efforts management
+│   │   └── FinancialReport.jsx   # Weekly financial breakdown
 │   ├── map/
 │   │   └── WorldMap.jsx          # Interactive map with zoom & selection
 │   ├── ui/
-│   │   ├── Dashboard.jsx         # Time controls & action buttons ✨ UPDATED
+│   │   ├── Dashboard.jsx         # Time controls & action buttons
 │   │   └── MainMenu.jsx          # Game start screen
 │   └── layout/
 │       └── GameWindow.jsx        # Draggable window component
 ├── data/
-│   ├── cities.js       # 16 world cities with demand data
-│   ├── planes.js       # 47 historical aircraft (1936-2050)
-│   ├── properties.js   # Property types (hotels, agencies) ✨ NEW
+│   ├── cities.js       # 76 world cities with demand data & images
+│   ├── planes.js       # 47 historical aircraft (1936-2050) & images
+│   ├── properties.js   # Property types (hotels, agencies)
 │   └── constants.js    # Game constants
 ├── hooks/
-│   └── useGameLoop.js  # Game simulation, task & modifier processing ✨ UPDATED
+│   └── useGameLoop.js  # Game simulation, task & modifier processing
 ├── lib/
 │   ├── utils.js        # Geographic utilities & geodesic math
-│   ├── economy.js      # Economic model v2.0 with modifiers ✨ UPDATED
-│   └── modifiers.js    # Extensible modifier system ✨ NEW
+│   ├── economy.js      # Economic model v2.0 with modifiers
+│   └── modifiers.js    # Extensible modifier system
 ├── store/
-│   └── useGameStore.js # Zustand state management ✨ UPDATED
-└── App.jsx             # Main app with window management ✨ UPDATED
+│   └── useGameStore.js # Zustand state management
+└── App.jsx             # Main app with window management
+
+public/
+├── planes/             # 47 aircraft photos (400x250px)
+├── cities/             # 76 city skyline photos (400x225px)
+└── WorldMap.png        # World map background
+
+scripts/
+└── download-images.mjs # Wikimedia Commons image downloader
 ```
 
 ## Recent Bug Fixes (Feb 2026)
@@ -271,18 +296,16 @@ src/
 ## Known Issues & TODOs
 
 ### High Priority
-1. **Map Image**: Add actual world map background image (currently uses fallback gradient)
-2. **Map Performance**: Consider Canvas rendering if expanding beyond 16 cities/routes
+1. **Map Performance**: Consider Canvas rendering if performance degrades with many routes
 
 ### Medium Priority
-3. **Bankruptcy Detection**: Add game over condition when money < 0 for too long
-4. **Aircraft Resale**: Allow selling unused aircraft (currently can only buy)
+2. **Bankruptcy Detection**: Add game over condition when money < 0 for too long
+3. **Aircraft Resale**: Allow selling unused aircraft (currently can only buy)
 
 ### Low Priority
-5. **More Cities**: Expand from 16 to 50+ airports worldwide
-6. **Random Events**: Add fuel crises, disasters, opportunities
-7. **Achievements**: Add milestone tracking
-8. **Tutorial**: Add onboarding for new players
+4. **Random Events**: Add fuel crises, disasters, opportunities
+5. **Achievements**: Add milestone tracking
+6. **Tutorial**: Add onboarding for new players
 
 ## Testing Checklist
 
@@ -516,12 +539,10 @@ Properties are processed weekly in `calculatePropertyFinancials()`:
 
 ### Future Enhancements
 6. **Random Events System** - Use modifier system for fuel crises, CEO changes, disasters
-7. Add more cities (expand from 16 to 50+ airports)
-8. Add world map background image
-9. Implement bankruptcy/game over detection
-10. Add aircraft resale functionality
-11. Add achievements and milestones (use modifier rewards)
-12. Add more property types (if needed - cargo terminals, flight schools, etc.)
+7. Implement bankruptcy/game over detection
+8. Add aircraft resale functionality
+9. Add achievements and milestones (use modifier rewards)
+10. Add more property types (if needed - cargo terminals, flight schools, etc.)
 
 ### Polish
 13. Enhance UI animations and transitions
