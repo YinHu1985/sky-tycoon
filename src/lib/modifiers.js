@@ -319,6 +319,30 @@ export const calculateCityRelationship = (company, cityId) => {
   return Math.max(0, Math.min(100, relationship));
 };
 
+/**
+ * Calculate modified city attributes (biz, tour)
+ *
+ * @param {Object} company - Company state
+ * @param {Object} city - City object
+ * @returns {Object} Modified city attributes { biz, tour }
+ */
+export const getCityAttributes = (company, city) => {
+  if (!city) return { biz: 0, tour: 0 };
+
+  // Calculate Biz
+  const bizModifiers = getModifiersForTarget(company, 'cityBiz', { cityId: city.id });
+  const biz = applyModifiers(city.biz, bizModifiers);
+
+  // Calculate Tour
+  const tourModifiers = getModifiersForTarget(company, 'cityTour', { cityId: city.id });
+  const tour = applyModifiers(city.tour, tourModifiers);
+
+  return {
+    biz: Math.max(0, biz),
+    tour: Math.max(0, tour)
+  };
+};
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -456,9 +480,12 @@ export const calculatePropertyFinancials = (company) => {
     const propType = PROPERTY_TYPES[prop.type];
     if (!propType) return { ...prop, weeklyIncome: 0, weeklyMaintCost: 0 };
 
+    // Get dynamic city attributes
+    const { biz, tour } = getCityAttributes(company, city);
+
     // Calculate income based on separate multipliers for biz and tour
-    const bizIncome = city.biz * 100000 * (propType.bizMultiplier || 0);
-    const tourIncome = city.tour * 100000 * (propType.tourMultiplier || 0);
+    const bizIncome = biz * 100000 * (propType.bizMultiplier || 0);
+    const tourIncome = tour * 100000 * (propType.tourMultiplier || 0);
     let income = bizIncome + tourIncome;
 
     // Fixed maintenance cost (not related to city attributes)

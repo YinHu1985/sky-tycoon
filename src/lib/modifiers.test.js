@@ -1,7 +1,66 @@
 import { describe, it, expect } from 'vitest';
-import { applyModifiers, expireModifiers } from './modifiers';
+import { applyModifiers, expireModifiers, getCityAttributes } from './modifiers';
 
 describe('Modifier System', () => {
+  describe('getCityAttributes', () => {
+    it('should return unmodified attributes if no modifiers match', () => {
+      const company = { activeModifiers: [] };
+      const city = { id: 'nyc', biz: 100, tour: 50 };
+      const result = getCityAttributes(company, city);
+      expect(result).toEqual({ biz: 100, tour: 50 });
+    });
+
+    it('should apply cityBiz modifiers', () => {
+      const company = {
+        activeModifiers: [
+          {
+            target: 'cityBiz',
+            type: 'multiplier',
+            value: 1.5,
+            context: { cityId: 'nyc' }
+          }
+        ]
+      };
+      const city = { id: 'nyc', biz: 100, tour: 50 };
+      const result = getCityAttributes(company, city);
+      expect(result.biz).toBe(150);
+      expect(result.tour).toBe(50);
+    });
+
+    it('should apply cityTour modifiers', () => {
+      const company = {
+        activeModifiers: [
+          {
+            target: 'cityTour',
+            type: 'multiplier',
+            value: 2.0,
+            context: { cityId: 'nyc' }
+          }
+        ]
+      };
+      const city = { id: 'nyc', biz: 100, tour: 50 };
+      const result = getCityAttributes(company, city);
+      expect(result.biz).toBe(100);
+      expect(result.tour).toBe(100);
+    });
+
+    it('should ignore modifiers for other cities', () => {
+      const company = {
+        activeModifiers: [
+          {
+            target: 'cityBiz',
+            type: 'multiplier',
+            value: 1.5,
+            context: { cityId: 'lon' } // Different city
+          }
+        ]
+      };
+      const city = { id: 'nyc', biz: 100, tour: 50 };
+      const result = getCityAttributes(company, city);
+      expect(result).toEqual({ biz: 100, tour: 50 });
+    });
+  });
+
   describe('applyModifiers', () => {
     it('should return base value if no modifiers', () => {
       expect(applyModifiers(100, [])).toBe(100);

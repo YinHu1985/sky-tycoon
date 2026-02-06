@@ -5,7 +5,8 @@ import {
   getModifiersForTarget,
   applyModifiers,
   calculateFame,
-  calculatePropertyFinancials
+  calculatePropertyFinancials,
+  getCityAttributes
 } from './modifiers';
 
 /**
@@ -30,7 +31,9 @@ export const calculateWeeklyFinance = (company) => {
 
     // --- ECONOMY MODEL v2.0 with MODIFIERS ---
     // 1. Demand Calculation
-    const baseDemand = (source.biz + target.biz + source.tour + target.tour) * 10;
+    const sourceAttrs = getCityAttributes(company, source);
+    const targetAttrs = getCityAttributes(company, target);
+    const baseDemand = (sourceAttrs.biz + targetAttrs.biz + sourceAttrs.tour + targetAttrs.tour) * 10;
 
     // Price Sensitivity
     const priceModDecimal = route.priceModifier / 100;
