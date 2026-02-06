@@ -8,7 +8,7 @@
  * - Dynamic probability checks (triggers & modifiers)
  */
 
-import { ALL_EVENTS } from '../data/events';
+import { ALL_EVENTS } from '../data/events/index';
 
 // How many times more frequently we check for events compared to their MTTH
 // This allows for dynamic probability updates based on game state
