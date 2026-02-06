@@ -4,7 +4,7 @@ import { useGameStore } from '../../store/useGameStore';
 import { CITIES } from '../../data/cities';
 import { PLANE_TYPES } from '../../data/planes';
 import { PROPERTY_TYPES } from '../../data/properties';
-import { calculateCityRelationship } from '../../lib/modifiers';
+import { calculateCityRelationship, getCityAttributes } from '../../lib/modifiers';
 import { formatMoney } from '../../lib/utils';
 import { Building, Plane, Heart, Building2, Briefcase, Plus, Bus, UtensilsCrossed, Wrench, X } from 'lucide-react';
 
@@ -24,6 +24,9 @@ export const CityDetails = ({ cityId }) => {
 
   // Calculate relationship
   const relationship = calculateCityRelationship(company, cityId);
+
+  // Calculate effective attributes
+  const { biz, tour } = getCityAttributes(company, city);
 
   // Get properties in this city
   const cityProperties = company.properties ? company.properties.filter(p => p.cityId === cityId) : [];
@@ -80,11 +83,11 @@ export const CityDetails = ({ cityId }) => {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-slate-800 p-2 rounded text-center">
             <div className="text-xs text-slate-400 uppercase">Business</div>
-            <div className="text-xl font-bold text-sky-400">{city.biz}</div>
+            <div className="text-xl font-bold text-sky-400">{Math.round(biz)}</div>
           </div>
           <div className="bg-slate-800 p-2 rounded text-center">
             <div className="text-xs text-slate-400 uppercase">Tourism</div>
-            <div className="text-xl font-bold text-pink-400">{city.tour}</div>
+            <div className="text-xl font-bold text-pink-400">{Math.round(tour)}</div>
           </div>
         </div>
       </div>

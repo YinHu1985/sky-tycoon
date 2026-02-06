@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { useGameLoop } from './hooks/useGameLoop';
 import { MainMenu } from './components/ui/MainMenu';
@@ -26,6 +26,8 @@ function App() {
   const triggerEvent = useGameStore(state => state.triggerEvent);
   const showNextEvent = useGameStore(state => state.showNextEvent);
   const addNotification = useGameStore(state => state.addNotification);
+  const paused = useGameStore(state => state.paused);
+  const setPaused = useGameStore(state => state.setPaused);
 
   const [openWindows, setOpenWindows] = useState([]);
   const [activeWindowId, setActiveWindowId] = useState(null);
@@ -33,6 +35,19 @@ function App() {
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [mapSelectionMode, setMapSelectionMode] = useState(null); // { type: 'route', onSelect: (cityId) => void }
   const [debugEventId, setDebugEventId] = useState(''); // For debug event triggering
+
+  useEffect(() => {
+    // Prevent default space bar scrolling
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && !e.target.matches('input, textarea')) {
+        e.preventDefault();
+        setPaused(!paused);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [paused, setPaused]);
 
   const handleOpenWindow = (id) => {
     if (!openWindows.includes(id)) {
