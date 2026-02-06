@@ -8,6 +8,9 @@
  * - startDate: Optional Date object - when the event can start happening (null = game start)
  * - endDate: Optional Date object - when the event stops happening (null = never ends)
  * - mtth: Mean Time To Happen in days (null = doesn't trigger by time)
+ * - triggers: Array of functions (state) => boolean. All must be true for event to fire.
+ * - mtth_modifiers: Array of { factor: number, condition: (state) => boolean }. 
+ *      If condition is true, mtth is multiplied by factor (0.5 = 2x more likely).
  * - oneTime: Boolean - if true, event only fires once
  * - modal: Boolean - if true, pauses game and requires user action (default: true)
  * - options: Array of choices the player can make
@@ -46,6 +49,8 @@ Good luck building your aviation empire!`,
     startDate: new Date(1950, 0, 1), // January 1, 1950
     endDate: new Date(1950, 1, 2),   // Feb 1, 1950 (one month window)
     mtth: 1, // Will happen on day 1
+    triggers: [],
+    mtth_modifiers: [],
     oneTime: true,
     modal: true,
     options: [
@@ -65,7 +70,60 @@ Good luck building your aviation empire!`,
   },
 
   // ============================================================================
-  // EXAMPLE EVENTS (for future development)
+  // DYNAMIC EVENTS
+  // ============================================================================
+
+  bankruptcy_bailout: {
+    id: 'bankruptcy_bailout',
+    title: 'Government Bailout?',
+    description: `Your airline is running out of cash! The government is concerned about the loss of connectivity and jobs.
+
+They are offering a one-time emergency bailout to keep operations running, but it comes with strings attached.`,
+    startDate: new Date(1950, 0, 1),
+    endDate: null,
+    mtth: 30, // Check frequently (monthly avg)
+    oneTime: true, // Only once per game
+    modal: true,
+    triggers: [
+      (state) => state.company.money < 100000 // Only fires if money is very low (< $100k)
+    ],
+    mtth_modifiers: [
+      { 
+        factor: 0.1, // 10x more likely (effectively immediate)
+        condition: (state) => state.company.money < -1000000 // If deeply in debt
+      }
+    ],
+    options: [
+      {
+        label: 'Accept Bailout',
+        description: 'Receive $5M grant, but lose 20 Fame',
+        effects: [
+          { type: 'money', amount: 5000000 },
+          { 
+            type: 'addModifier',
+            modifier: {
+              id: 'bailout_shame',
+              source: 'event_bailout',
+              type: 'flat',
+              target: 'fame',
+              value: -20,
+              context: null,
+              expireDuration: 365, // 1 year
+              description: 'Bailout Shame: -20 Fame'
+            }
+          }
+        ]
+      },
+      {
+        label: 'Refuse',
+        description: 'We will find our own way',
+        effects: []
+      }
+    ]
+  },
+
+  // ============================================================================
+  // HISTORICAL EVENTS
   // ============================================================================
 
   oil_crisis_1973: {
@@ -79,6 +137,8 @@ How will you respond to this challenge?`,
     mtth: 180, // Average 180 days
     oneTime: true,
     modal: true,
+    triggers: [],
+    mtth_modifiers: [],
     options: [
       {
         label: 'Raise ticket prices',
@@ -152,6 +212,19 @@ Their salary demands are high, but they're offering a 5-year contract that could
     mtth: 7300, // Average every 20 years (20 * 365 days)
     oneTime: false, // Can hire multiple CEOs over time
     modal: true,
+    triggers: [
+      (state) => state.company.money > 2000000 // Must have some cash
+    ],
+    mtth_modifiers: [
+      {
+        factor: 0.5, // 2x more likely
+        condition: (state) => state.company.fame > 80 // If famous
+      },
+      {
+        factor: 2.0, // 2x less likely
+        condition: (state) => state.company.fame < 20 // If unknown
+      }
+    ],
     options: [
       {
         label: 'Hire them ($1M signing bonus)',

@@ -246,6 +246,13 @@ export const useGameStore = create((set, get) => ({
     scheduledEvents: [...state.scheduledEvents, { eventId, scheduledDate }]
   })),
 
+  rescheduleEvent: (eventId, newDate) => set(state => ({
+    scheduledEvents: [
+      ...state.scheduledEvents.filter(e => e.eventId !== eventId),
+      { eventId, scheduledDate: newDate }
+    ]
+  })),
+
   removeScheduledEvent: (eventId) => set(state => ({
     scheduledEvents: state.scheduledEvents.filter(e => e.eventId !== eventId)
   })),

@@ -6,7 +6,9 @@ import { formatMoney } from '../lib/utils';
 import {
   scheduleEvents,
   checkScheduledEvents,
-  removeScheduledEvents
+  getEventById,
+  shouldEventFire,
+  scheduleNextOccurrence
 } from '../lib/eventSystem';
 
 const MS_PER_DAY_NORMAL = 200;
@@ -15,7 +17,6 @@ export const useGameLoop = () => {
   const lastUpdate = useRef(0);
   const accumulatedTime = useRef(0);
   const lastProcessedWeek = useRef(null);
-  const lastProcessedYear = useRef(null);
   const eventsInitialized = useRef(false);
 
   useEffect(() => {
@@ -52,21 +53,41 @@ export const useGameLoop = () => {
         scheduledEvents,
         triggerEvent,
         showNextEvent,
-        setScheduledEvents
+        setScheduledEvents,
+        rescheduleEvent,
+        removeScheduledEvent
       } = useGameStore.getState();
 
       // Check if any scheduled events should fire today
-      const eventsToFire = checkScheduledEvents(currentDate, scheduledEvents);
+      const eventsToProcess = checkScheduledEvents(currentDate, scheduledEvents);
 
-      if (eventsToFire.length > 0) {
-        // Trigger all events that should fire today
-        eventsToFire.forEach(eventId => {
-          triggerEvent(eventId);
+      if (eventsToProcess.length > 0) {
+        // Process each event that is due
+        eventsToProcess.forEach(eventId => {
+          const event = getEventById(eventId);
+          if (!event) return;
+
+          // Check if event should fire (probability & triggers)
+          const shouldFire = shouldEventFire(event, useGameStore.getState());
+
+          if (shouldFire) {
+            triggerEvent(eventId);
+            
+            // If one-time event fires, remove it from schedule
+            if (event.oneTime) {
+              removeScheduledEvent(eventId);
+              return;
+            }
+          }
+
+          // Reschedule for next occurrence (whether it fired or not)
+          const next = scheduleNextOccurrence(currentDate, event);
+          if (next) {
+            rescheduleEvent(eventId, next.scheduledDate);
+          } else {
+            removeScheduledEvent(eventId);
+          }
         });
-
-        // Remove fired events from schedule
-        const updatedSchedule = removeScheduledEvents(scheduledEvents, eventsToFire);
-        setScheduledEvents(updatedSchedule);
 
         // Get fresh state after triggering events
         const { activeEvent, pendingEvents } = useGameStore.getState();
@@ -76,12 +97,6 @@ export const useGameLoop = () => {
           showNextEvent();
         }
       }
-    };
-
-    const rescheduleEvents = (currentDate) => {
-      const { firedOneTimeEvents, setScheduledEvents } = useGameStore.getState();
-      const newSchedule = scheduleEvents(currentDate, firedOneTimeEvents);
-      setScheduledEvents(newSchedule);
     };
 
     const processWeeklyFinance = () => {
@@ -137,7 +152,9 @@ export const useGameLoop = () => {
       // Initialize event system on first run
       if (gameStarted && !eventsInitialized.current) {
         eventsInitialized.current = true;
-        rescheduleEvents(date);
+        const { firedOneTimeEvents, setScheduledEvents } = useGameStore.getState();
+        const newSchedule = scheduleEvents(date, firedOneTimeEvents);
+        setScheduledEvents(newSchedule);
       }
 
       if (!paused) {
@@ -166,13 +183,6 @@ export const useGameLoop = () => {
           if (currentWeek !== lastProcessedWeek.current) {
             lastProcessedWeek.current = currentWeek;
             processWeeklyFinance();
-          }
-
-          // Yearly processing (reschedule events)
-          const currentYear = newDate.getFullYear();
-          if (currentYear !== lastProcessedYear.current) {
-            lastProcessedYear.current = currentYear;
-            rescheduleEvents(newDate);
           }
 
           // Auto-save on January 1st
