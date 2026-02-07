@@ -17,10 +17,13 @@ const StatRow = ({ label, value, type = 'neutral' }) => (
 );
 
 export const FinancialReport = () => {
-  const { stats, money } = useGameStore(useShallow(state => ({
-    stats: state.company.stats,
-    money: state.company.money
-  })));
+  const { stats, money } = useGameStore(useShallow(state => {
+    const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
+    return {
+      stats: playerCompany ? playerCompany.stats : {},
+      money: playerCompany ? playerCompany.money : 0
+    };
+  }));
 
   return (
     <div className="flex flex-col gap-6 w-[400px]">

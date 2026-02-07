@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { CITIES } from '../../data/cities';
 import { MAP_IMAGE_URL } from '../../data/constants';
@@ -24,7 +25,11 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const lastMousePos = useRef({ x: 0, y: 0 });
 
-  const { company } = useGameStore();
+  const { companies, playerCompanyId, hiddenCompanyRoutes } = useGameStore(useShallow(state => ({
+    companies: state.companies,
+    playerCompanyId: state.playerCompanyId,
+    hiddenCompanyRoutes: state.hiddenCompanyRoutes || []
+  })));
 
   useEffect(() => {
     const img = new Image();
@@ -77,17 +82,28 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
   };
 
   const handleWheel = (e) => {
-    e.preventDefault();
-    const minZoom = getMinZoom();
-    const maxZoom = 4;
-    const delta = e.deltaY * -0.001;
-    const newZoom = Math.max(minZoom, Math.min(maxZoom, zoom + delta));
-    setZoom(newZoom);
+    // Legacy handler kept for reference, but functionality moved to useEffect for { passive: false } support
   };
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      const minZoom = getMinZoom();
+      const maxZoom = 4;
+      const delta = e.deltaY * -0.001;
+      setZoom(prev => Math.max(minZoom, Math.min(maxZoom, prev + delta)));
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, []);
 
   const handleZoomIn = () => {
     const maxZoom = 4;
-    setZoom(prev => Math.min(maxZoom, prev * 1.2));
+    setZoom(prev => Math.min(maxZoom, prev / 1.2));
   };
 
   const handleZoomOut = () => {
@@ -95,19 +111,33 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
     setZoom(prev => Math.max(minZoom, prev / 1.2));
   };
 
-  // Calculate route segments (each route may have multiple segments if crossing antimeridian)
-  const activeRoutesData = useMemo(() => {
-    return company.routes.map(route => {
-      const source = CITIES.find(c => c.id === route.sourceId);
-      const target = CITIES.find(c => c.id === route.targetId);
-      if (!source || !target) return null;
+  // Calculate route segments for ALL companies
+  const allRoutesData = useMemo(() => {
+    // Distinct colors for AI companies (Cyan, Purple, Orange, Pink, Lime, Yellow)
+    const AI_COLORS = ['#06b6d4', '#d946ef', '#f97316', '#ec4899', '#84cc16', '#eab308'];
 
-      return {
-        segments: getGreatCircleSegments(source, target, 100),
-        profit: route.stats?.profitLastWeek || 0
-      };
-    }).filter(Boolean);
-  }, [company.routes]);
+    return companies.flatMap((company, idx) => {
+      // Skip if company routes are hidden
+      if (hiddenCompanyRoutes.includes(company.id)) return [];
+
+      const isPlayer = company.id === playerCompanyId;
+      const aiColor = AI_COLORS[idx % AI_COLORS.length];
+
+      return company.routes.map(route => {
+        const source = CITIES.find(c => c.id === route.sourceId);
+        const target = CITIES.find(c => c.id === route.targetId);
+        if (!source || !target) return null;
+
+        return {
+          segments: getGreatCircleSegments(source, target, 100),
+          profit: route.stats?.profitLastWeek || 0,
+          isPlayer,
+          companyId: company.id,
+          aiColor
+        };
+      }).filter(Boolean);
+    });
+  }, [companies, playerCompanyId, hiddenCompanyRoutes]);
 
   // Render multiple world instances for seamless wrapping
   const renderWorldInstance = (xOffset) => (
@@ -135,16 +165,28 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
 
       {/* Routes */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        {activeRoutesData.map((routeData, routeIdx) => {
-          const color = routeData.profit >= 0 ? '#10b981' : '#ef4444';
+        {allRoutesData.map((routeData, routeIdx) => {
+          // Color logic:
+          // Player: Green (profit) or Red (loss)
+          // AI: Distinct color per company
+          let color = routeData.aiColor;
+          let opacity = 0.6;
+          let width = 1.5;
+
+          if (routeData.isPlayer) {
+            color = routeData.profit >= 0 ? '#10b981' : '#ef4444';
+            opacity = 0.8;
+            width = 2;
+          }
+
           return routeData.segments.map((segment, segmentIdx) => (
             <polyline
-              key={`${routeIdx}-${segmentIdx}`}
+              key={`${routeData.companyId}-${routeIdx}-${segmentIdx}`}
               points={segment.map(p => `${p.x},${p.y}`).join(' ')}
               fill="none"
               stroke={color}
-              strokeWidth={2 / zoom}
-              strokeOpacity="0.7"
+              strokeWidth={width / zoom}
+              strokeOpacity={opacity}
             />
           ));
         })}
@@ -153,7 +195,11 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
       {/* Cities */}
       {CITIES.map(city => {
         const { x, y } = geoToPixel(city.lat, city.lon);
-        const isHub = company.hq === city.id;
+        // Check if this city is a HQ for ANY company
+        const hqOwner = companies.find(c => c.hq === city.id);
+        const isPlayerHq = hqOwner?.id === playerCompanyId;
+        const isAiHq = hqOwner && !isPlayerHq;
+
         const inSelectionMode = !!selectionMode;
 
         return (
@@ -162,21 +208,29 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
             className={`absolute rounded-full cursor-pointer hover:scale-150 transition-all ${
               inSelectionMode
                 ? 'bg-yellow-400 ring-4 ring-yellow-300 animate-pulse shadow-lg shadow-yellow-400/50'
-                : isHub
-                  ? 'bg-red-500 ring-2 ring-red-300'
-                  : 'bg-cyan-400 hover:bg-cyan-300'
+                : isPlayerHq
+                  ? 'bg-red-500 ring-2 ring-red-300 z-10'
+                  : isAiHq
+                    ? 'bg-purple-500 ring-1 ring-purple-300 z-10' // AI HQ
+                    : 'bg-cyan-400 hover:bg-cyan-300'
             }`}
             style={{
               left: x - 4,
               top: y - 4,
-              width: inSelectionMode ? 10 : (isHub ? 8 : 6),
-              height: inSelectionMode ? 10 : (isHub ? 8 : 6)
+              width: inSelectionMode ? 10 : ((isPlayerHq || isAiHq) ? 8 : 6),
+              height: inSelectionMode ? 10 : ((isPlayerHq || isAiHq) ? 8 : 6)
             }}
             onClick={(e) => {
               e.stopPropagation();
               onCityClick(city);
             }}
-            title={inSelectionMode ? `Click to select ${city.name}` : city.name}
+            title={
+              inSelectionMode 
+                ? `Click to select ${city.name}` 
+                : hqOwner 
+                  ? `${city.name} (${hqOwner.name} HQ)` 
+                  : city.name
+            }
           />
         );
       })}
@@ -191,7 +245,7 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
+      // onWheel handled by non-passive listener in useEffect
     >
       <div
         style={{
@@ -199,7 +253,8 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
           transformOrigin: '0 0',
           width: MAP_WIDTH * 3,
           height: MAP_HEIGHT,
-          position: 'absolute'
+          position: 'absolute',
+          willChange: 'transform'
         }}
       >
         {/* Render 3 instances for seamless wrapping */}

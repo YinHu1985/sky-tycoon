@@ -1,7 +1,7 @@
-import { historicalEvents } from './historical';
-import { companyEvents } from './company';
-import { economicEvents } from './economic';
-import { accidentEvents } from './accidents';
+import { historicalEvents } from './historical.js';
+import { companyEvents } from './company.js';
+import { economicEvents } from './economic.js';
+import { accidentEvents } from './accidents.js';
 
 export const ALL_EVENTS = [
   ...historicalEvents,

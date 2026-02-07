@@ -11,12 +11,12 @@ They are offering a one-time emergency bailout to keep operations running, but i
     oneTime: true, // Only once per game
     modal: true,
     triggers: [
-      (state) => state.company.money < 100000 // Only fires if money is very low (< $100k)
+      (state, company) => company.money < 100000 // Only fires if money is very low (< $100k)
     ],
     mtth_modifiers: [
       { 
         factor: 0.1, // 10x more likely (effectively immediate)
-        condition: (state) => state.company.money < -1000000 // If deeply in debt
+        condition: (state, company) => company.money < -1000000 // If deeply in debt
       }
     ],
     options: [
@@ -59,16 +59,16 @@ Their salary demands are high, but they're offering a 5-year contract that could
     oneTime: false, // Can hire multiple CEOs over time
     modal: true,
     triggers: [
-      (state) => state.company.money > 2000000 // Must have some cash
+      (state, company) => company.money > 2000000 // Must have some cash
     ],
     mtth_modifiers: [
       {
         factor: 0.5, // 2x more likely
-        condition: (state) => state.company.fame > 80 // If famous
+        condition: (state, company) => company.fame > 80 // If famous
       },
       {
         factor: 2.0, // 2x less likely
-        condition: (state) => state.company.fame < 20 // If unknown
+        condition: (state, company) => company.fame < 20 // If unknown
       }
     ],
     options: [
@@ -122,10 +122,10 @@ Their salary demands are high, but they're offering a 5-year contract that could
     oneTime: false,
     modal: true,
     triggers: [
-       (state) => state.company.fame > 30 // Must be somewhat known
+       (state, company) => company && company.fame > 30 // Must be somewhat known
     ],
     mtth_modifiers: [
-       { factor: 0.5, condition: (state) => state.company.serviceEffort > 80 } // High service attracts celebs
+       { factor: 0.5, condition: (state, company) => company && company.serviceEffort > 80 } // High service attracts celebs
     ],
     options: [
        {

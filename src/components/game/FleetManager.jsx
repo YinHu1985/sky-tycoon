@@ -1,11 +1,27 @@
 import React from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { PLANE_TYPES } from '../../data/planes';
 import { useGameStore } from '../../store/useGameStore';
 import { formatMoney } from '../../lib/utils';
 import { Plane, Clock, Package } from 'lucide-react';
 
 export const FleetManager = () => {
-  const { company, date, tasks, debugUnlockAll, updateCompany, addTask, addNotification } = useGameStore();
+  const { company, date, tasks, debugUnlockAll, updateCompany, addTask, addNotification, buyPlane } = useGameStore(useShallow(state => {
+      const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
+      return {
+          company: playerCompany,
+          date: state.date,
+          tasks: state.tasks,
+          debugUnlockAll: state.debugUnlockAll,
+          updateCompany: state.updateCompany,
+          addTask: state.addTask,
+          addNotification: state.addNotification,
+          buyPlane: state.buyPlane
+      };
+  }));
+
+  if (!company) return null;
+
   const { fleet, money } = company;
   const currentYear = date.getFullYear();
 
@@ -15,8 +31,8 @@ export const FleetManager = () => {
       return;
     }
 
-    // Deduct money
-    updateCompany({ money: money - plane.price });
+    // Call generic action instead of manual update
+    buyPlane(plane.id, plane.price, { delayed: true });
 
     // Create delivery task (14 days)
     const deliveryDate = new Date(date);

@@ -1,13 +1,126 @@
-import { PLANE_TYPES } from '../data/planes';
-import { CITIES } from '../data/cities';
-import { calculateDistance } from './utils';
+import { PLANE_TYPES } from '../data/planes.js';
+import { CITIES } from '../data/cities.js';
+import { calculateDistance } from './utils.js';
 import {
   getModifiersForTarget,
   applyModifiers,
   calculateFame,
   calculatePropertyFinancials,
   getCityAttributes
-} from './modifiers';
+} from './modifiers.js';
+
+export const calculateFlightRouteIncome = (company, route) => {
+  const type = PLANE_TYPES.find(t => t.id === route.planeTypeId);
+  const source = CITIES.find(c => c.id === route.sourceId);
+  const target = CITIES.find(c => c.id === route.targetId);
+
+  if (!type || !source || !target) return route;
+
+  const dist = calculateDistance(source, target);
+  if (typeof dist !== 'number' || isNaN(dist)) {
+      console.error(`Invalid distance calculated for route ${route.id}: ${source.name} -> ${target.name}`);
+      return {
+          profitLastWeek: 0,
+          revenue: 0,
+          flightCost: 0,
+          maintCost: 0,
+          occupancy: 0,
+          passengers: 0,
+          actualTicket: 0
+      };
+  }
+
+  // --- ECONOMY MODEL v2.0 with MODIFIERS ---
+  // 1. Demand Calculation
+  const sourceAttrs = getCityAttributes(company, source);
+  const targetAttrs = getCityAttributes(company, target);
+  const baseDemand = (sourceAttrs.biz + targetAttrs.biz + sourceAttrs.tour + targetAttrs.tour) * 10;
+
+  // Price Sensitivity
+  const priceModDecimal = route.priceModifier / 100;
+  const demandMultiplier = 1 - (priceModDecimal * 0.6);
+
+  // Apply demand modifiers
+  const demandMods = getModifiersForTarget(company, 'demand', {
+    sourceId: route.sourceId,
+    targetId: route.targetId,
+    routeId: route.id
+  });
+  const realDemand = applyModifiers(baseDemand * demandMultiplier, demandMods);
+
+  // 2. Capacity (Round Trip = 2x capacity per freq)
+  const weeklyCapacity = route.frequency * type.capacity * 2;
+
+  // 3. Occupancy with Load Factor Modifiers
+  const basePassengers = Math.min(weeklyCapacity, realDemand);
+  let baseLoadFactor = weeklyCapacity > 0 ? basePassengers / weeklyCapacity : 0;
+
+  // Apply load factor modifiers (fame, relationship, properties, events)
+  const loadFactorMods = getModifiersForTarget(company, 'loadFactor', {
+    sourceId: route.sourceId,
+    targetId: route.targetId,
+    routeId: route.id,
+    planeTypeId: route.planeTypeId
+  });
+  const modifiedLoadFactor = Math.min(1.0, applyModifiers(baseLoadFactor, loadFactorMods));
+
+  // Recalculate passengers with modified load factor
+  const passengers = Math.min(weeklyCapacity, weeklyCapacity * modifiedLoadFactor);
+  const loadFactor = modifiedLoadFactor;
+
+  // 4. Revenue with Modifiers
+  const isSupersonic = type.speed > 1000;
+  // Adjusted base rates to ensure profitability for modern jets (v2.1)
+  // Previous: 0.35/0.85 -> resulted in ~$0.25/pax-km vs ~$0.35 cost
+  // New: 0.55/1.10 -> targets ~$0.38/pax-km
+  const baseRate = isSupersonic ? 1.10 : 0.55;
+  const baseFee = isSupersonic ? 200 : 50;
+
+  const baseTicket = baseFee + (dist * baseRate);
+  const actualTicket = baseTicket * (1 + priceModDecimal);
+  let routeRevenue = passengers * actualTicket;
+
+  // Apply revenue modifiers
+  const revenueMods = getModifiersForTarget(company, 'revenue', {
+    sourceId: route.sourceId,
+    targetId: route.targetId,
+    routeId: route.id
+  });
+  routeRevenue = applyModifiers(routeRevenue, revenueMods);
+
+  // 5. Costs with Modifiers
+  // Flight operations cost (affected by service effort)
+  let flightOpsCost = route.frequency * (2 * dist * type.opCost);
+  const flightCostMods = getModifiersForTarget(company, 'flightCost', {
+    sourceId: route.sourceId,
+    targetId: route.targetId,
+    routeId: route.id,
+    planeTypeId: route.planeTypeId
+  });
+  flightOpsCost = applyModifiers(flightOpsCost, flightCostMods);
+
+  // Maintenance cost (affected by maintenance effort)
+  let activeMaintCost = route.assignedCount * type.maint;
+  const maintCostMods = getModifiersForTarget(company, 'maintenanceCost', {
+    planeTypeId: route.planeTypeId,
+    routeId: route.id
+  });
+  activeMaintCost = applyModifiers(activeMaintCost, maintCostMods);
+
+  const routeTotalCost = flightOpsCost + activeMaintCost;
+  const profit = routeRevenue - routeTotalCost;
+
+  return {
+    profitLastWeek: profit,
+    revenue: routeRevenue,
+    flightCost: flightOpsCost,
+    maintCost: activeMaintCost,
+    occupancy: loadFactor,
+    passengers,
+    actualTicket
+  };
+}
+
 
 /**
  * Calculate weekly financial results for all routes
@@ -21,106 +134,15 @@ export const calculateWeeklyFinance = (company) => {
 
   // 1. Calculate Route Revenue & Costs (with modifiers)
   const updatedRoutes = company.routes.map(route => {
-    const type = PLANE_TYPES.find(t => t.id === route.planeTypeId);
-    const source = CITIES.find(c => c.id === route.sourceId);
-    const target = CITIES.find(c => c.id === route.targetId);
+    let stats = calculateFlightRouteIncome(company, route)
 
-    if (!type || !source || !target) return route;
-
-    const dist = calculateDistance(source, target);
-
-    // --- ECONOMY MODEL v2.0 with MODIFIERS ---
-    // 1. Demand Calculation
-    const sourceAttrs = getCityAttributes(company, source);
-    const targetAttrs = getCityAttributes(company, target);
-    const baseDemand = (sourceAttrs.biz + targetAttrs.biz + sourceAttrs.tour + targetAttrs.tour) * 10;
-
-    // Price Sensitivity
-    const priceModDecimal = route.priceModifier / 100;
-    const demandMultiplier = 1 - (priceModDecimal * 0.6);
-
-    // Apply demand modifiers
-    const demandMods = getModifiersForTarget(company, 'demand', {
-      sourceId: route.sourceId,
-      targetId: route.targetId,
-      routeId: route.id
-    });
-    const realDemand = applyModifiers(baseDemand * demandMultiplier, demandMods);
-
-    // 2. Capacity (Round Trip = 2x capacity per freq)
-    const weeklyCapacity = route.frequency * type.capacity * 2;
-
-    // 3. Occupancy with Load Factor Modifiers
-    const basePassengers = Math.min(weeklyCapacity, realDemand);
-    let baseLoadFactor = weeklyCapacity > 0 ? basePassengers / weeklyCapacity : 0;
-
-    // Apply load factor modifiers (fame, relationship, properties, events)
-    const loadFactorMods = getModifiersForTarget(company, 'loadFactor', {
-      sourceId: route.sourceId,
-      targetId: route.targetId,
-      routeId: route.id,
-      planeTypeId: route.planeTypeId
-    });
-    const modifiedLoadFactor = Math.min(1.0, applyModifiers(baseLoadFactor, loadFactorMods));
-
-    // Recalculate passengers with modified load factor
-    const passengers = Math.min(weeklyCapacity, weeklyCapacity * modifiedLoadFactor);
-    const loadFactor = modifiedLoadFactor;
-
-    // 4. Revenue with Modifiers
-    const isSupersonic = type.speed > 1000;
-    const baseRate = isSupersonic ? 0.85 : 0.35;
-    const baseFee = isSupersonic ? 200 : 50;
-
-    const baseTicket = baseFee + (dist * baseRate);
-    const actualTicket = baseTicket * (1 + priceModDecimal);
-    let routeRevenue = passengers * actualTicket;
-
-    // Apply revenue modifiers
-    const revenueMods = getModifiersForTarget(company, 'revenue', {
-      sourceId: route.sourceId,
-      targetId: route.targetId,
-      routeId: route.id
-    });
-    routeRevenue = applyModifiers(routeRevenue, revenueMods);
-
-    // 5. Costs with Modifiers
-    // Flight operations cost (affected by service effort)
-    let flightOpsCost = route.frequency * (2 * dist * type.opCost);
-    const flightCostMods = getModifiersForTarget(company, 'flightCost', {
-      sourceId: route.sourceId,
-      targetId: route.targetId,
-      routeId: route.id,
-      planeTypeId: route.planeTypeId
-    });
-    flightOpsCost = applyModifiers(flightOpsCost, flightCostMods);
-
-    // Maintenance cost (affected by maintenance effort)
-    let activeMaintCost = route.assignedCount * type.maint;
-    const maintCostMods = getModifiersForTarget(company, 'maintenanceCost', {
-      planeTypeId: route.planeTypeId,
-      routeId: route.id
-    });
-    activeMaintCost = applyModifiers(activeMaintCost, maintCostMods);
-
-    const routeTotalCost = flightOpsCost + activeMaintCost;
-    const profit = routeRevenue - routeTotalCost;
-
-    totalRevenue += routeRevenue;
-    totalFlightCost += flightOpsCost;
-    totalMaintCost += activeMaintCost;
+    totalRevenue += stats.revenue;
+    totalFlightCost += stats.flightCost;
+    totalMaintCost += stats.maintCost;
 
     return {
       ...route,
-      stats: {
-        profitLastWeek: profit,
-        revenue: routeRevenue,
-        flightCost: flightOpsCost,
-        maintCost: activeMaintCost,
-        occupancy: loadFactor,
-        passengers,
-        actualTicket
-      }
+      stats
     };
   });
 
@@ -163,31 +185,34 @@ export const calculateWeeklyFinance = (company) => {
   );
 
   // 5. Calculate net income (including all new costs/income)
-  const netIncome = totalRevenue
+    const netIncome = totalRevenue
                   + propertyResults.totalPropertyIncome
                   - (totalFlightCost + totalMaintCost + totalIdleCost + company.prBudget + propertyResults.totalPropertyCost);
 
-  return {
+    const safeNetIncome = isNaN(netIncome) ? 0 : netIncome;
+    const safeTotalRevenue = isNaN(totalRevenue) ? 0 : totalRevenue;
+
+    return {
     routes: updatedRoutes,
     properties: propertyResults.properties,
     fame: newFame,
     stats: {
-      totalRevenue,
+      totalRevenue: safeTotalRevenue,
       totalFlightCost,
       totalMaintCost,
       totalIdleCost,
       totalPrCost: company.prBudget,
       totalPropertyIncome: propertyResults.totalPropertyIncome,
       totalPropertyCost: propertyResults.totalPropertyCost,
-      netIncome,
+      netIncome: safeNetIncome,
       idleCounts
     },
-    money: company.money + netIncome
+    money: company.money + safeNetIncome
   };
 };
 
 /**
- * Calculate automatic frequency based on aircraft and route
+ * Calculate max frequency based on aircraft and route
  */
 export const calculateFrequency = (planeTypeId, distance, assignedCount) => {
   const type = PLANE_TYPES.find(t => t.id === planeTypeId);
@@ -198,4 +223,104 @@ export const calculateFrequency = (planeTypeId, distance, assignedCount) => {
   const tripsPerPlane = Math.floor(168 / roundTripTime); // 168 hours per week
 
   return tripsPerPlane * assignedCount;
+};
+
+/**
+ * Helper to evaluate potential route profitability
+ * Can be used by AI or Player "Auto-Manage"
+ */
+export const calculateOptimalRouteConfig = (company, sourceId, targetId, planeTypeId, assignedCount) => {
+  // this function ignores plane range for simplicity
+
+  const source = CITIES.find(c => c.id === sourceId);
+  const target = CITIES.find(c => c.id === targetId);
+  const type = PLANE_TYPES.find(t => t.id === planeTypeId);
+
+  if (!source || !target || !type) {
+    return { canFly: false };
+  }
+
+  const distance = calculateDistance(source, target);
+  
+  // 1. Optimize Frequency (at priceModifier = 0)
+  const maxFrequency = calculateFrequency(planeTypeId, distance, assignedCount);
+  let bestFrequency = maxFrequency;
+  let bestProfitFreq = -Infinity;
+
+  // Try frequencies from max down to 1
+  for (let f = maxFrequency; f >= 1; f--) {
+    const stats = calculateFlightRouteIncome(company, {
+      sourceId,
+      targetId,
+      planeTypeId,
+      assignedCount,
+      frequency: f,
+      priceModifier: 0
+    });
+
+    if (stats.profitLastWeek > bestProfitFreq) {
+      bestProfitFreq = stats.profitLastWeek;
+      bestFrequency = f;
+    } else {
+      // Profit dropped compared to previous (higher) frequency?
+      // Wait, we are iterating downwards: max -> 1.
+      // If profit at f is LOWER than profit at f+1, then f+1 was the peak (or we are moving away from peak).
+      // However, usually curve is: Low Freq (High Profit/flight, low total) -> Optimal -> High Freq (Loss due to empty seats).
+      // So as we go Max -> 1:
+      // Profit should likely RISE (as we reduce empty seats) then FALL (as we reduce volume).
+      // So if profit RISES, we keep going.
+      // If profit DROPS (stats.profitLastWeek < bestProfitFreq), it means we passed the peak.
+      if (bestProfitFreq > -Infinity) {
+          break;
+      }
+    }
+  }
+
+  // 2. Optimize Price (at bestFrequency)
+  let bestPriceModifier = 0; // Default
+  let bestProfitPrice = -Infinity;
+  let finalStats = null;
+
+  // Try prices from 50 to -50, step 10
+  for (let p = 50; p >= -50; p -= 10) {
+    const stats = calculateFlightRouteIncome(company, {
+      sourceId,
+      targetId,
+      planeTypeId,
+      assignedCount,
+      frequency: bestFrequency,
+      priceModifier: p
+    });
+
+    if (stats.profitLastWeek > bestProfitPrice) {
+      bestProfitPrice = stats.profitLastWeek;
+      bestPriceModifier = p;
+      finalStats = stats;
+    } else {
+      // If profit drops, we assume we passed the peak
+      if (bestProfitPrice > -Infinity) {
+        break;
+      }
+    }
+  }
+
+  // Safety fallback if loops didn't run (e.g. maxFreq=0)
+  if (!finalStats) {
+      finalStats = calculateFlightRouteIncome(company, {
+          sourceId, targetId, planeTypeId, assignedCount,
+          frequency: bestFrequency,
+          priceModifier: bestPriceModifier
+      });
+  }
+  
+  return {
+      profit: finalStats.profitLastWeek,
+      revenue: finalStats.revenue,
+      cost: finalStats.flightCost + finalStats.maintCost,
+      loadFactor: finalStats.occupancy,
+      passengers: finalStats.passengers,
+      recommendedFrequency: bestFrequency,
+      recommendedPriceModifer: bestPriceModifier,
+      canFly: true
+  };
 };

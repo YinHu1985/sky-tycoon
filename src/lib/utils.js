@@ -19,6 +19,13 @@ export const calculateDistance = (c1, c2) => {
   return Math.round(R * c);
 };
 
+export const calculateFlightTime = (distance, speed) => {
+  if (!speed || speed <= 0) return 0;
+  // Speed is likely km/h. Distance is km.
+  // Return hours.
+  return distance / speed;
+};
+
 export const geoToPixel = (lat, lon) => {
   const x = (lon + 180) * (MAP_WIDTH / 360);
   const y = ((-1 * lat) + 90) * (MAP_HEIGHT / 180);

@@ -11,6 +11,7 @@ import { FinancialReport } from './components/game/FinancialReport';
 import { CityDetails } from './components/game/CityDetails';
 import { RouteDetails } from './components/game/RouteDetails';
 import { CompanyManagement } from './components/game/CompanyManagement';
+import { CompanyList } from './components/game/CompanyList';
 import { EventWindow } from './components/game/EventWindow';
 import AudioManager from './components/audio/AudioManager';
 import { Settings } from 'lucide-react';
@@ -121,6 +122,10 @@ function App() {
           case 'company':
             title = 'Company Management';
             content = <CompanyManagement />;
+            break;
+          case 'rivals':
+            title = 'Global Rankings';
+            content = <CompanyList />;
             break;
           case 'settings':
             title = 'Settings';

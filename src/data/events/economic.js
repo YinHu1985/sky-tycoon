@@ -9,7 +9,7 @@ export const economicEvents = [
     oneTime: false,
     modal: true,
     triggers: [
-       (state) => state.company.money > 500000
+       (state, company) => company.money > 500000
     ],
     mtth_modifiers: [],
     options: [

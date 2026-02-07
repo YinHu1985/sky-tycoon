@@ -1,15 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { useGameStore } from '../store/useGameStore';
-import { calculateWeeklyFinance } from '../lib/economy';
-import { expireModifiers } from '../lib/modifiers';
-import { formatMoney } from '../lib/utils';
+import { useGameStore } from '../store/useGameStore.js';
+import { calculateWeeklyFinance, calculateOptimalRouteConfig } from '../lib/economy.js';
+import { expireModifiers } from '../lib/modifiers.js';
+import { formatMoney } from '../lib/utils.js';
 import {
   scheduleEvents,
   checkScheduledEvents,
   getEventById,
   shouldEventFire,
-  scheduleNextOccurrence
-} from '../lib/eventSystem';
+  scheduleNextOccurrence,
+  applyEventEffects
+} from '../lib/eventSystem.js';
+import { processAI } from '../lib/AIController.js';
 
 const MS_PER_DAY_NORMAL = 200;
 
@@ -17,6 +19,7 @@ export const useGameLoop = () => {
   const lastUpdate = useRef(0);
   const accumulatedTime = useRef(0);
   const lastProcessedWeek = useRef(null);
+  const lastProcessedMonth = useRef(null);
   const eventsInitialized = useRef(false);
 
   useEffect(() => {
@@ -24,7 +27,7 @@ export const useGameLoop = () => {
     let animationFrameId;
 
     const processTasks = (currentDate) => {
-      const { tasks, removeTask, updateCompany, addNotification } = useGameStore.getState();
+      const { tasks, removeTask, updateCompanyData, addNotification, companies, playerCompanyId } = useGameStore.getState();
 
       tasks.forEach(task => {
         const taskDate = new Date(task.completeDate);
@@ -33,15 +36,18 @@ export const useGameLoop = () => {
           if (task.type === 'DELIVER_PLANE') {
             const { typeId, count } = task.payload;
             // Re-fetch company state to get latest fleet count
-            const { company } = useGameStore.getState();
-            const currentCount = company.fleet[typeId] || 0;
-            updateCompany({
-              fleet: {
-                ...company.fleet,
-                [typeId]: currentCount + count
-              }
-            });
-            addNotification(`${count}x ${task.name.replace('Delivery: ', '')} delivered!`, 'success');
+            // Assuming tasks are for player company for now
+            const playerCompany = companies.find(c => c.id === playerCompanyId);
+            if (playerCompany) {
+              const currentCount = playerCompany.fleet[typeId] || 0;
+              updateCompanyData(playerCompanyId, {
+                fleet: {
+                  ...playerCompany.fleet,
+                  [typeId]: currentCount + count
+                }
+              });
+              addNotification(`${count}x ${task.name.replace('Delivery: ', '')} delivered!`, 'success');
+            }
           }
           removeTask(task.id);
         }
@@ -55,37 +61,77 @@ export const useGameLoop = () => {
         showNextEvent,
         setScheduledEvents,
         rescheduleEvent,
-        removeScheduledEvent
+        removeScheduledEvent,
+        companies
       } = useGameStore.getState();
 
       // Check if any scheduled events should fire today
+      // eventsToProcess is now Array<{ eventId, companyId }>
       const eventsToProcess = checkScheduledEvents(currentDate, scheduledEvents);
 
       if (eventsToProcess.length > 0) {
         // Process each event that is due
-        eventsToProcess.forEach(eventId => {
+        eventsToProcess.forEach(({ eventId, companyId }) => {
           const event = getEventById(eventId);
           if (!event) return;
 
+          // Find the specific company if companyId is provided
+          let targetCompany = null;
+          if (companyId) {
+              targetCompany = companies.find(c => c.id === companyId);
+              // If company no longer exists (e.g. bankruptcy), skip event?
+              // For now, if company is missing but expected, skip.
+              if (!targetCompany) {
+                  removeScheduledEvent(eventId, companyId);
+                  return;
+              }
+          }
+
           // Check if event should fire (probability & triggers)
-          const shouldFire = shouldEventFire(event, useGameStore.getState());
+          // shouldEventFire now takes (event, state, company)
+          const shouldFire = shouldEventFire(event, useGameStore.getState(), targetCompany);
 
           if (shouldFire) {
-            triggerEvent(eventId);
+            // triggerEvent needs to know companyId too if it's targeted?
+            // Currently triggerEvent just puts ID in pendingEvents.
+            // If it's an AI company event, do we show it to the player?
+            // User said: "event should happen to ai companies as well"
+            // If it's purely internal (no modal), we just apply effects?
+            // But existing events have 'options' and are 'modal'.
+            // AI needs to "pick one".
+            
+            // For now, if it's Player company, we trigger UI.
+            // If it's AI company, we automatically pick an option.
+            
+            const isPlayer = !companyId || companyId === useGameStore.getState().playerCompanyId;
+            
+            if (isPlayer) {
+                triggerEvent(eventId);
+            } else {
+                // Handle AI Event
+                // Randomly pick an option for AI
+                // We need a helper for this or do it here.
+                if (event.options && event.options.length > 0) {
+                    const randomOption = event.options[Math.floor(Math.random() * event.options.length)];
+                    applyEventEffects(randomOption, useGameStore, companyId);
+                    // Add log/notification? "AI Company X faced Strike"
+                }
+            }
             
             // If one-time event fires, remove it from schedule
+            // For company events, it's one-time for THAT company.
             if (event.oneTime) {
-              removeScheduledEvent(eventId);
+              removeScheduledEvent(eventId, companyId);
               return;
             }
           }
 
           // Reschedule for next occurrence (whether it fired or not)
-          const next = scheduleNextOccurrence(currentDate, event);
+          const next = scheduleNextOccurrence(currentDate, event, companyId);
           if (next) {
-            rescheduleEvent(eventId, next.scheduledDate);
+            rescheduleEvent(eventId, next.scheduledDate, companyId);
           } else {
-            removeScheduledEvent(eventId);
+            removeScheduledEvent(eventId, companyId);
           }
         });
 
@@ -100,32 +146,70 @@ export const useGameLoop = () => {
     };
 
     const processWeeklyFinance = () => {
-      const { company, date, updateCompany, addNotification } = useGameStore.getState();
+      const { companies, date, updateCompanyData, addNotification, playerCompanyId } = useGameStore.getState();
 
-      // Expire any modifiers that have reached their expiry date
-      const activeModifiers = expireModifiers(company, date);
+      companies.forEach(company => {
+        // Expire any modifiers that have reached their expiry date
+        const activeModifiers = expireModifiers(company, date);
 
-      // Calculate weekly finances with updated modifiers
-      const result = calculateWeeklyFinance({
-        ...company,
-        activeModifiers
+        // Calculate weekly finances with updated modifiers
+        const result = calculateWeeklyFinance({
+          ...company,
+          activeModifiers
+        });
+
+        // Optimization: Handle AI Helper for Player Routes
+        if (company.id === playerCompanyId) {
+          let hasAutoUpdates = false;
+          const optimizedRoutes = result.routes.map(route => {
+            if (route.autoManaged) {
+              const config = calculateOptimalRouteConfig(
+                company, 
+                route.sourceId, 
+                route.targetId, 
+                route.planeTypeId, 
+                route.assignedCount
+              );
+
+              if (config.canFly && (
+                  route.frequency !== config.recommendedFrequency || 
+                  route.priceModifier !== config.recommendedPriceModifer
+                )) {
+                hasAutoUpdates = true;
+                return {
+                  ...route,
+                  frequency: config.recommendedFrequency,
+                  priceModifier: config.recommendedPriceModifer
+                };
+              }
+            }
+            return route;
+          });
+
+          if (hasAutoUpdates) {
+            result.routes = optimizedRoutes;
+            // Optional: Notify user about optimizations?
+            // addNotification("AI Helper optimized your flight routes", "info"); 
+          }
+        }
+
+        updateCompanyData(company.id, {
+          money: result.money,
+          routes: result.routes,
+          fame: result.fame,
+          properties: result.properties,
+          activeModifiers,
+          stats: result.stats
+        });
+
+        // Only notify for player company
+        if (company.id === playerCompanyId && result.stats.netIncome !== 0) {
+          addNotification(
+            `Weekly Report: ${result.stats.netIncome > 0 ? '+' : ''}${formatMoney(result.stats.netIncome)}`,
+            result.stats.netIncome > 0 ? 'success' : 'error'
+          );
+        }
       });
-
-      updateCompany({
-        money: result.money,
-        routes: result.routes,
-        fame: result.fame,
-        properties: result.properties,
-        activeModifiers,
-        stats: result.stats
-      });
-
-      if (result.stats.netIncome !== 0) {
-        addNotification(
-          `Weekly Report: ${result.stats.netIncome > 0 ? '+' : ''}${formatMoney(result.stats.netIncome)}`,
-          result.stats.netIncome > 0 ? 'success' : 'error'
-        );
-      }
     };
 
     const getWeekNumber = (date) => {
@@ -137,62 +221,86 @@ export const useGameLoop = () => {
       return `${d.getFullYear()}-${weekNo}`;
     };
 
-    const tick = () => {
-      const now = Date.now();
-      const delta = now - lastUpdate.current;
-      lastUpdate.current = now;
+    const tick = (timestamp) => {
+      try {
+        const now = Date.now();
+        if (!lastUpdate.current) lastUpdate.current = now;
+        const delta = now - lastUpdate.current;
+        lastUpdate.current = now;
 
-      const { date, paused, speed, gameStarted, setDate, saveGame } = useGameStore.getState();
+        const { 
+          gameStarted, 
+          paused, 
+          speed, 
+          date,
+          setDate, 
+          saveGame,
+          activeEvent,
+          pendingEvents
+        } = useGameStore.getState();
 
-      if (!gameStarted) {
-        animationFrameId = requestAnimationFrame(tick);
-        return;
-      }
+        if (!gameStarted) {
+          animationFrameId = requestAnimationFrame(tick);
+          return;
+        }
 
-      // Initialize event system on first run
-      if (gameStarted && !eventsInitialized.current) {
-        eventsInitialized.current = true;
-        const { firedOneTimeEvents, setScheduledEvents } = useGameStore.getState();
-        const newSchedule = scheduleEvents(date, firedOneTimeEvents);
-        setScheduledEvents(newSchedule);
-      }
+        // Initialize event system on first run
+        if (gameStarted && !eventsInitialized.current) {
+          eventsInitialized.current = true;
+          const { firedOneTimeEvents, setScheduledEvents, companies } = useGameStore.getState();
+          const newSchedule = scheduleEvents(date, firedOneTimeEvents, companies);
+          setScheduledEvents(newSchedule);
+        }
 
-      if (!paused) {
-        const timeScale = speed;
-        accumulatedTime.current += delta * timeScale;
+        // Don't advance time if there's an active event modal or paused
+        if (!paused && !activeEvent && pendingEvents.length === 0) {
+          const timeScale = speed;
+          accumulatedTime.current += delta * timeScale;
 
-        const msPerDay = MS_PER_DAY_NORMAL;
+          const msPerDay = MS_PER_DAY_NORMAL;
 
-        if (accumulatedTime.current >= msPerDay) {
-          const daysToAdvance = Math.floor(accumulatedTime.current / msPerDay);
-          accumulatedTime.current -= daysToAdvance * msPerDay;
+          if (accumulatedTime.current >= msPerDay) {
+            const daysToAdvance = Math.floor(accumulatedTime.current / msPerDay);
+            accumulatedTime.current -= daysToAdvance * msPerDay;
 
-          const newDate = new Date(date);
-          newDate.setDate(newDate.getDate() + daysToAdvance);
+            const newDate = new Date(date);
+            newDate.setDate(newDate.getDate() + daysToAdvance);
 
-          setDate(newDate);
+            setDate(newDate);
 
-          // Process tasks
-          processTasks(newDate);
+            // Process tasks
+            processTasks(newDate);
 
-          // Process events (check for scheduled events)
-          processEvents(newDate);
+            // Process events (check for scheduled events)
+            processEvents(newDate);
 
-          // Weekly processing (check if week changed)
-          const currentWeek = getWeekNumber(newDate);
-          if (currentWeek !== lastProcessedWeek.current) {
-            lastProcessedWeek.current = currentWeek;
-            processWeeklyFinance();
-          }
+            // Weekly processing (check if week changed)
+            const currentWeek = getWeekNumber(newDate);
+            if (currentWeek !== lastProcessedWeek.current) {
+              lastProcessedWeek.current = currentWeek;
+              processWeeklyFinance();
+            }
 
-          // Auto-save on January 1st
-          if (newDate.getDate() === 1 && newDate.getMonth() === 0) {
-            const oldDate = new Date(date);
-            if (oldDate.getFullYear() !== newDate.getFullYear()) {
-              saveGame();
+            // Monthly processing for AI (less frequent planning)
+            const currentMonth = `${newDate.getFullYear()}-${newDate.getMonth()}`;
+            if (currentMonth !== lastProcessedMonth.current) {
+                lastProcessedMonth.current = currentMonth;
+                console.log(`[GameLoop] Month changed to ${currentMonth}. Triggering AI processing.`);
+                processAI(useGameStore.getState());
+            }
+
+            // Auto-save on January 1st
+            if (newDate.getDate() === 1 && newDate.getMonth() === 0) {
+              const oldDate = new Date(date);
+              if (oldDate.getFullYear() !== newDate.getFullYear()) {
+                saveGame();
+              }
             }
           }
         }
+      } catch (error) {
+        console.error("Game Loop Error:", error);
+        useGameStore.getState().setPaused(true);
       }
 
       animationFrameId = requestAnimationFrame(tick);

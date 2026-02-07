@@ -5,19 +5,24 @@ import { CITIES } from '../../data/cities';
 import { PLANE_TYPES } from '../../data/planes';
 import { calculateDistance, formatMoney } from '../../lib/utils';
 import { calculateFrequency } from '../../lib/economy';
-import { Save, X, TrendingUp, TrendingDown, Plane, MapPin } from 'lucide-react';
+import { Save, X, TrendingUp, TrendingDown, Plane, MapPin, Bot } from 'lucide-react';
 
 export const RouteDetails = ({ routeId }) => {
-  const { routes, fleet, updateRoute } = useGameStore(useShallow(state => ({
-    routes: state.company.routes,
-    fleet: state.company.fleet,
-    updateRoute: state.updateRoute
-  })));
+  const { routes, fleet, updateRoute } = useGameStore(useShallow(state => {
+    const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
+    return {
+      routes: playerCompany ? playerCompany.routes : [],
+      fleet: playerCompany ? playerCompany.fleet : {},
+      updateRoute: state.updateRoute
+    };
+  }));
 
   const route = routes.find(r => r.id === routeId);
   const [isEditing, setIsEditing] = useState(false);
   const [editedAssignedCount, setEditedAssignedCount] = useState(route?.assignedCount || 1);
   const [editedPriceModifier, setEditedPriceModifier] = useState(route?.priceModifier || 0);
+  const [editedAutoManaged, setEditedAutoManaged] = useState(route?.autoManaged || false);
+  const [editedTargetFrequency, setEditedTargetFrequency] = useState(route?.frequency || 0);
 
   if (!route) return <div className="text-slate-400">Route not found</div>;
 
@@ -47,7 +52,8 @@ export const RouteDetails = ({ routeId }) => {
     updateRoute(routeId, {
       assignedCount: editedAssignedCount,
       frequency: editedFrequency,
-      priceModifier: editedPriceModifier
+      priceModifier: editedPriceModifier,
+      autoManaged: editedAutoManaged
     });
     setIsEditing(false);
   };
@@ -55,8 +61,11 @@ export const RouteDetails = ({ routeId }) => {
   const handleCancel = () => {
     setEditedAssignedCount(route.assignedCount);
     setEditedPriceModifier(route.priceModifier);
+    setEditedAutoManaged(route.autoManaged || false);
+    setEditedTargetFrequency(route.frequency);
     setIsEditing(false);
   };
+
 
   return (
     <div className="w-[450px] flex flex-col gap-4">
@@ -67,12 +76,20 @@ export const RouteDetails = ({ routeId }) => {
             {route.flightNumber}
           </div>
           {!isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="text-sm bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded font-bold"
-            >
-              Edit Route
-            </button>
+            <div className="flex items-center gap-2">
+              {route.autoManaged && (
+                <div className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-xs border border-indigo-500/50">
+                  <Bot size={14} />
+                  <span>AI Helper Active</span>
+                </div>
+              )}
+              <button
+                onClick={() => setIsEditing(true)}
+                className="text-sm bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded font-bold"
+              >
+                Edit Route
+              </button>
+            </div>
           )}
         </div>
 
@@ -101,6 +118,28 @@ export const RouteDetails = ({ routeId }) => {
             <Plane size={16} /> Edit Route Parameters
           </h4>
 
+          {/* AI Helper Toggle */}
+          {isEditing && (
+            <div className="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-600">
+              <div className="flex items-center gap-2">
+                <Bot size={16} className="text-indigo-400" />
+                <div>
+                  <div className="text-sm font-bold text-indigo-100">AI Helper</div>
+                  <div className="text-[10px] text-slate-400">Auto-optimize price & frequency</div>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer"
+                  checked={editedAutoManaged}
+                  onChange={e => setEditedAutoManaged(e.target.checked)}
+                />
+                <div className="w-9 h-5 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+          )}
+
           <div>
             <div className="flex justify-between text-xs mb-1">
               <span className="text-slate-400">Assigned Aircraft</span>
@@ -111,10 +150,30 @@ export const RouteDetails = ({ routeId }) => {
               min="1"
               max={Math.max(1, available)}
               value={editedAssignedCount}
-              onChange={e => setEditedAssignedCount(parseInt(e.target.value))}
-              className="w-full accent-blue-500"
+              onChange={e => {
+                setEditedAssignedCount(parseInt(e.target.value));
+                setEditedTargetFrequency(0);
+              }}
+              disabled={editedAutoManaged}
+              className={`w-full accent-blue-500 ${editedAutoManaged ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
           </div>
+
+          <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-400">Flight Frequency</span>
+                <span className="text-white font-bold">{editedFrequency} / {maxFrequency}/wk</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max={maxFrequency}
+                value={editedFrequency}
+                onChange={e => setEditedTargetFrequency(parseInt(e.target.value))}
+                disabled={editedAutoManaged}
+                className={`w-full accent-sky-500 ${editedAutoManaged ? 'opacity-50 cursor-not-allowed' : ''}`}
+              />
+            </div>
 
           <div>
             <div className="flex justify-between text-xs mb-1">
@@ -130,9 +189,16 @@ export const RouteDetails = ({ routeId }) => {
               step="5"
               value={editedPriceModifier}
               onChange={e => setEditedPriceModifier(parseInt(e.target.value))}
-              className="w-full accent-emerald-500"
+              disabled={editedAutoManaged}
+              className={`w-full accent-emerald-500 ${editedAutoManaged ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
           </div>
+
+          {editedAutoManaged && (
+            <div className="text-xs text-indigo-300 italic text-center">
+              Settings locked while AI Helper is active
+            </div>
+          )}
 
           <div className="text-xs text-slate-300 bg-slate-800 p-2 rounded">
             <span>Est. Frequency: </span>

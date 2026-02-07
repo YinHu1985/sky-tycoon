@@ -13,6 +13,7 @@ Good luck building your aviation empire!`,
     triggers: [],
     mtth_modifiers: [],
     oneTime: true,
+    scope: 'global',
     modal: true,
     options: [
       {

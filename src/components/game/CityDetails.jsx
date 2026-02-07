@@ -11,12 +11,15 @@ import { Building, Plane, Heart, Building2, Briefcase, Plus, Bus, UtensilsCrosse
 export const CityDetails = ({ cityId }) => {
   const city = CITIES.find(c => c.id === cityId);
 
-  const { company, routes, buyProperty, sellProperty } = useGameStore(useShallow(state => ({
-    company: state.company,
-    routes: state.company.routes,
-    buyProperty: state.buyProperty,
-    sellProperty: state.sellProperty
-  })));
+  const { company, routes, buyProperty, sellProperty } = useGameStore(useShallow(state => {
+    const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
+    return {
+      company: playerCompany,
+      routes: playerCompany ? playerCompany.routes : [],
+      buyProperty: state.buyProperty,
+      sellProperty: state.sellProperty
+    };
+  }));
 
   if (!city) return null;
 

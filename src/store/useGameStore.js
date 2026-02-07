@@ -1,9 +1,13 @@
 import { create } from 'zustand';
-import { START_YEAR, generateId } from '../lib/utils';
+import { START_YEAR, generateId } from '../lib/utils.js';
+import { CompanyActions } from '../lib/CompanyActions.js';
+import { generateAICompanies } from '../lib/AIUtils.js';
 
-const SAVE_KEY = 'airline_tycoon_save_v2';
+const SAVE_KEY = 'airline_tycoon_save_v3'; // Incremented version
 
 const initialCompany = {
+  id: 'player',
+  isPlayer: true, // Flag to identify player company easily
   name: 'Skyways Int.',
   code: 'SKW',
   hq: 'nyc',
@@ -47,8 +51,19 @@ export const useGameStore = create((set, get) => ({
   speed: 1,
   debugUnlockAll: false,
 
-  // Company State
-  company: initialCompany,
+  // Companies State
+  companies: [initialCompany],
+  playerCompanyId: 'player',
+
+  // Getter for current player company (helper for UI)
+  get playerCompany() {
+    return get().companies.find(c => c.id === get().playerCompanyId);
+  },
+  
+  // Backwards compatibility for UI components that might access state.company directly
+  // Note: Proxies or getters on the state object itself are tricky in Zustand. 
+  // We will rely on components migrating to use `companies` and `playerCompanyId`
+  // or using the selector: state => state.companies.find(c => c.id === state.playerCompanyId)
 
   // Tasks
   tasks: [],
@@ -61,8 +76,18 @@ export const useGameStore = create((set, get) => ({
 
   // UI State
   notifications: [],
+  hiddenCompanyRoutes: [], // Array of company IDs whose routes should be hidden on map
 
   // Actions
+  toggleCompanyRoutes: (companyId) => set(state => {
+    const isHidden = state.hiddenCompanyRoutes.includes(companyId);
+    if (isHidden) {
+      return { hiddenCompanyRoutes: state.hiddenCompanyRoutes.filter(id => id !== companyId) };
+    } else {
+      return { hiddenCompanyRoutes: [...state.hiddenCompanyRoutes, companyId] };
+    }
+  }),
+
   setGameStarted: (started) => set({ gameStarted: started }),
   setPaused: (paused) => set({ paused }),
   setSpeed: (speed) => set({ speed }),
@@ -81,154 +106,101 @@ export const useGameStore = create((set, get) => ({
     }, 4000);
   },
 
-  updateCompany: (updates) => set(state => ({
-    company: { ...state.company, ...updates }
-  })),
-
-  // Route Management
-  addRoute: (route) => set(state => {
-    const flightNumber = `${state.company.code}${state.company.nextFlightNum}`;
-    const newRoute = {
-      ...route,
-      id: route.id || generateId(),
-      flightNumber,
-      stats: {
-        profitLastWeek: 0,
-        revenue: 0,
-        flightCost: 0,
-        maintCost: 0,
-        occupancy: 0,
-        passengers: 0,
-        actualTicket: 0
-      }
-    };
-
-    return {
-      company: {
-        ...state.company,
-        routes: [...state.company.routes, newRoute],
-        nextFlightNum: state.company.nextFlightNum + 1
-      }
-    };
-  }),
-
-  updateRoute: (routeId, updates) => set(state => ({
-    company: {
-      ...state.company,
-      routes: state.company.routes.map(r =>
-        r.id === routeId ? { ...r, ...updates } : r
-      )
-    }
-  })),
-
-  deleteRoute: (routeId) => set(state => ({
-    company: {
-      ...state.company,
-      routes: state.company.routes.filter(r => r.id !== routeId)
-    }
-  })),
-
-  // Fleet Management
-  buyPlane: (typeId, cost) => set(state => {
-    const currentCount = state.company.fleet[typeId] || 0;
-    return {
-      company: {
-        ...state.company,
-        money: state.company.money - cost,
-        fleet: {
-          ...state.company.fleet,
-          [typeId]: currentCount + 1
-        }
-      }
-    };
-  }),
-
-  // Company Management (Efforts & Fame)
-  updateEfforts: (maintenanceEffort, serviceEffort, prBudget) => set(state => ({
-    company: {
-      ...state.company,
-      maintenanceEffort,
-      serviceEffort,
-      prBudget
-    }
-  })),
-
-  // Property Management
-  buyProperty: (type, cityId, cost) => set(state => {
-    // Check if company already owns this type of property in this city
-    const alreadyOwned = state.company.properties.some(
-      p => p.type === type && p.cityId === cityId
-    );
-
-    if (alreadyOwned) {
-      get().addNotification('You already own this type of property in this city', 'error');
+  // --- NEW ABSTRACTION LAYER ---
+  
+  performAction: (companyId, actionType, payload) => set(state => {
+    const companyIndex = state.companies.findIndex(c => c.id === companyId);
+    if (companyIndex === -1) {
+      console.error(`Company not found: ${companyId}`);
       return state;
     }
 
-    const newProperty = {
-      id: generateId(),
-      type,
-      cityId,
-      purchaseDate: state.date.toISOString(),
-      purchaseCost: cost,
-      weeklyIncome: 0,
-      weeklyMaintCost: 0
-    };
+    const company = state.companies[companyIndex];
+    const actionFn = CompanyActions[actionType];
 
-    return {
-      company: {
-        ...state.company,
-        money: state.company.money - cost,
-        properties: [...state.company.properties, newProperty]
-      }
-    };
+    if (!actionFn) {
+      console.error(`Unknown action: ${actionType}`);
+      return state;
+    }
+
+    try {
+      const updates = actionFn(company, payload);
+      
+      const newCompanies = [...state.companies];
+      newCompanies[companyIndex] = { ...company, ...updates };
+
+      return { companies: newCompanies };
+    } catch (e) {
+      get().addNotification(e.message, 'error');
+      return state;
+    }
   }),
 
-  sellProperty: (propertyId) => set(state => {
-    const property = state.company.properties.find(p => p.id === propertyId);
-    if (!property) return state;
+  // Legacy wrappers for UI convenience (acting on player company)
+  addRoute: (route) => get().performAction(get().playerCompanyId, 'ADD_ROUTE', route),
+  updateRoute: (routeId, updates) => get().performAction(get().playerCompanyId, 'UPDATE_ROUTE', { routeId, updates }),
+  deleteRoute: (routeId) => get().performAction(get().playerCompanyId, 'DELETE_ROUTE', { routeId }),
+  buyPlane: (typeId, cost, options = {}) => get().performAction(get().playerCompanyId, 'BUY_PLANE', { typeId, cost, ...options }),
+  updateEfforts: (maintenanceEffort, serviceEffort, prBudget) => get().performAction(get().playerCompanyId, 'UPDATE_EFFORTS', { maintenanceEffort, serviceEffort, prBudget }),
+  buyProperty: (type, cityId, cost) => get().performAction(get().playerCompanyId, 'BUY_PROPERTY', { type, cityId, cost, date: get().date.toISOString() }),
+  sellProperty: (propertyId) => get().performAction(get().playerCompanyId, 'SELL_PROPERTY', { propertyId }),
+  addMoney: (amount) => get().performAction(get().playerCompanyId, 'ADD_MONEY', { amount }),
 
-    // Sell for 50% of purchase cost
-    const sellValue = property.purchaseCost * 0.5;
+  // Direct state updates for internal logic (like weekly finance)
+  updateCompanyData: (companyId, updates) => set(state => ({
+    companies: state.companies.map(c => 
+      c.id === companyId ? { ...c, ...updates } : c
+    )
+  })),
 
-    return {
-      company: {
-        ...state.company,
-        money: state.company.money + sellValue,
-        properties: state.company.properties.filter(p => p.id !== propertyId)
-      }
-    };
-  }),
+  // Deprecated: Only updates player company. Kept for safety during migration.
+  updateCompany: (updates) => get().updateCompanyData(get().playerCompanyId, updates),
 
-  // Modifier Management (for events)
+
+  // Modifier Management (Refactored to support generic company update)
   addModifier: (modifier) => set(state => {
+    // Defaults to player company for now as modifiers are usually triggered by player events
+    // TODO: Event system should specify target company
+    const companyId = state.playerCompanyId; 
+    const company = state.companies.find(c => c.id === companyId);
+    if (!company) return state;
+
     const modifierId = modifier.id || generateId();
     const newModifier = { ...modifier, id: modifierId };
-
-    // Remove any existing modifier with the same ID (prevent stacking)
-    const filteredModifiers = state.company.activeModifiers.filter(m => m.id !== modifierId);
+    const filteredModifiers = company.activeModifiers.filter(m => m.id !== modifierId);
 
     return {
-      company: {
-        ...state.company,
-        activeModifiers: [...filteredModifiers, newModifier]
-      }
+      companies: state.companies.map(c => 
+        c.id === companyId 
+          ? { ...c, activeModifiers: [...filteredModifiers, newModifier] }
+          : c
+      )
     };
   }),
 
-  removeModifier: (modifierId) => set(state => ({
-    company: {
-      ...state.company,
-      activeModifiers: state.company.activeModifiers.filter(m => m.id !== modifierId)
-    }
-  })),
+  removeModifier: (modifierId) => set(state => {
+    // Removes from ALL companies (assuming unique modifier IDs) or just player?
+    // Let's assume player for now to match legacy behavior
+    const companyId = state.playerCompanyId;
+    return {
+      companies: state.companies.map(c => 
+        c.id === companyId 
+          ? { ...c, activeModifiers: c.activeModifiers.filter(m => m.id !== modifierId) }
+          : c
+      )
+    };
+  }),
 
-  removeModifiersBySource: (source) => set(state => ({
-    company: {
-      ...state.company,
-      activeModifiers: state.company.activeModifiers.filter(m => m.source !== source)
-    }
-  })),
+  removeModifiersBySource: (source) => set(state => {
+    const companyId = state.playerCompanyId;
+    return {
+      companies: state.companies.map(c => 
+        c.id === companyId 
+          ? { ...c, activeModifiers: c.activeModifiers.filter(m => m.source !== source) }
+          : c
+      )
+    };
+  }),
 
   // Task Management
   addTask: (task) => set(state => ({
@@ -246,29 +218,42 @@ export const useGameStore = create((set, get) => ({
     scheduledEvents: [...state.scheduledEvents, { eventId, scheduledDate }]
   })),
 
-  rescheduleEvent: (eventId, newDate) => set(state => ({
-    scheduledEvents: [
-      ...state.scheduledEvents.filter(e => e.eventId !== eventId),
-      { eventId, scheduledDate: newDate }
-    ]
+  rescheduleEvent: (eventId, newDate, companyId = null) => set(state => {
+    // Filter out the specific event instance
+    const filtered = state.scheduledEvents.filter(e => {
+        if (companyId) return !(e.eventId === eventId && e.companyId === companyId);
+        return e.eventId !== eventId; // If global, remove all matching eventId? Or just the global one?
+        // Assuming global events have companyId undefined/null.
+    });
+    
+    return {
+        scheduledEvents: [...filtered, { eventId, scheduledDate: newDate, companyId }]
+    };
+  }),
+
+  removeScheduledEvent: (eventId, companyId = null) => set(state => ({
+    scheduledEvents: state.scheduledEvents.filter(e => {
+        if (companyId) return !(e.eventId === eventId && e.companyId === companyId);
+        return e.eventId !== eventId;
+    })
   })),
 
-  removeScheduledEvent: (eventId) => set(state => ({
-    scheduledEvents: state.scheduledEvents.filter(e => e.eventId !== eventId)
-  })),
-
-  markEventAsFired: (eventId) => set(state => {
+  markEventAsFired: (eventId, companyId = null) => set(state => {
     const newSet = new Set(state.firedOneTimeEvents);
-    newSet.add(eventId);
+    // If companyId is provided, we might want to track it per company?
+    // Current system just tracks eventId strings.
+    // If we change it to "eventId:companyId", we need to update usage elsewhere.
+    // For now, if companyId is present, store composite key.
+    const key = companyId ? `${eventId}:${companyId}` : eventId;
+    newSet.add(key);
     return { firedOneTimeEvents: newSet };
   }),
 
   triggerEvent: (eventId) => set(state => {
-    // Add to pending events queue if not already there
     if (!state.pendingEvents.includes(eventId)) {
       return {
         pendingEvents: [...state.pendingEvents, eventId],
-        paused: true // Pause game when event is triggered
+        paused: true 
       };
     }
     return state;
@@ -276,12 +261,11 @@ export const useGameStore = create((set, get) => ({
 
   showNextEvent: () => set(state => {
     if (state.pendingEvents.length === 0) return state;
-
     const [nextEventId, ...remainingEvents] = state.pendingEvents;
     return {
       activeEvent: nextEventId,
       pendingEvents: remainingEvents,
-      paused: true // Ensure game is paused
+      paused: true
     };
   }),
 
@@ -289,22 +273,15 @@ export const useGameStore = create((set, get) => ({
     activeEvent: null
   }),
 
-  addMoney: (amount) => set(state => ({
-    company: {
-      ...state.company,
-      money: state.company.money + amount
-    }
-  })),
-
   // Save/Load
   saveGame: () => {
     const state = get();
     const saveData = {
       date: state.date.toISOString(),
-      company: state.company,
+      companies: state.companies,
+      playerCompanyId: state.playerCompanyId,
       tasks: state.tasks,
       debugUnlockAll: state.debugUnlockAll,
-      // Event system state (don't save scheduledEvents - recalculate on load)
       firedOneTimeEvents: Array.from(state.firedOneTimeEvents)
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
@@ -316,13 +293,31 @@ export const useGameStore = create((set, get) => ({
     if (raw) {
       try {
         const data = JSON.parse(raw);
+        // Handle migration from v2 (single company) to v3 (companies array)
+        let companies = data.companies;
+        let playerCompanyId = data.playerCompanyId;
+
+        if (!companies && data.company) {
+             // Migration
+             const oldCompany = { ...data.company, id: 'player', isPlayer: true };
+             companies = [oldCompany];
+             playerCompanyId = 'player';
+        }
+
+        // Migration: Add AI companies if they don't exist (single player game)
+        if (companies && companies.length === 1 && companies[0].isPlayer) {
+             const aiCompanies = generateAICompanies(3, companies[0].hq);
+             companies = [...companies, ...aiCompanies];
+        }
+
         set({
           date: new Date(data.date),
-          company: data.company,
+          companies: companies,
+          playerCompanyId: playerCompanyId || 'player',
           tasks: data.tasks || [],
           debugUnlockAll: data.debugUnlockAll || false,
           firedOneTimeEvents: new Set(data.firedOneTimeEvents || []),
-          scheduledEvents: [], // Will be recalculated in game loop
+          scheduledEvents: [], 
           pendingEvents: [],
           activeEvent: null,
           gameStarted: true,
@@ -357,20 +352,26 @@ export const useGameStore = create((set, get) => ({
   },
 
   newGame: (name, code, hq) => {
+    const playerCompany = {
+        ...initialCompany,
+        id: 'player',
+        isPlayer: true,
+        name: name || 'New Airline',
+        code: code || 'AIR',
+        hq: hq || 'nyc'
+    };
+
+    const aiCompanies = generateAICompanies(3, playerCompany.hq);
+
     set({
       gameStarted: true,
       date: new Date(`${START_YEAR}-01-01`),
       paused: true,
       speed: 1,
-      company: {
-        ...initialCompany,
-        name: name || 'New Airline',
-        code: code || 'AIR',
-        hq: hq || 'nyc'
-      },
+      companies: [playerCompany, ...aiCompanies],
+      playerCompanyId: 'player',
       tasks: [],
       notifications: [],
-      // Initialize event system
       scheduledEvents: [],
       firedOneTimeEvents: new Set(),
       pendingEvents: [],

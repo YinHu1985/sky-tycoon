@@ -9,11 +9,11 @@ export const accidentEvents = [
     oneTime: false,
     modal: true,
     triggers: [
-      (state) => state.company.maintenanceEffort < 50 // Only if maintenance is lax
+      (state, company) => company.maintenanceEffort < 50 // Only if maintenance is lax
     ],
     mtth_modifiers: [
       {
-         condition: (state) => state.company.maintenanceEffort < 20,
+         condition: (state, company) => company.maintenanceEffort < 20,
          factor: 0.2 // 5x more likely if very low maintenance
       }
     ],
@@ -50,7 +50,7 @@ export const accidentEvents = [
     oneTime: false,
     modal: true,
     triggers: [
-       (state) => state.company.serviceEffort < 40 // Low service/pay effort triggers it
+       (state, company) => company.serviceEffort < 40 // Low service/pay effort triggers it
     ],
     mtth_modifiers: [],
     options: [
@@ -105,7 +105,7 @@ export const accidentEvents = [
     modal: true,
     triggers: [],
     mtth_modifiers: [
-       { factor: 0.5, condition: (state) => state.company.maintenanceEffort < 40 }
+       { factor: 0.5, condition: (state, company) => company.maintenanceEffort < 40 }
     ],
     options: [
       {

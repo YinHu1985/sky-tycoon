@@ -2,7 +2,7 @@ import React from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   Play, Pause, FastForward, DollarSign, Calendar,
-  Menu, Plane, Map as MapIcon, TrendingUp, Star
+  Menu, Plane, Map as MapIcon, TrendingUp, Star, Trophy
 } from 'lucide-react';
 import { useGameStore } from '../../store/useGameStore';
 import { formatMoney, formatDate } from '../../lib/utils';
@@ -13,7 +13,7 @@ export const Dashboard = ({ onOpenWindow }) => {
     setPaused, setSpeed
   } = useGameStore(useShallow(state => ({
     date: state.date,
-    company: state.company,
+    company: state.companies.find(c => c.id === state.playerCompanyId),
     paused: state.paused,
     speed: state.speed,
     setPaused: state.setPaused,
@@ -111,6 +111,15 @@ export const Dashboard = ({ onOpenWindow }) => {
           >
             <Star size={20} className="group-hover:text-yellow-400 transition-colors" />
             <span className="text-sm font-bold">Company</span>
+          </button>
+          <div className="w-px bg-slate-700 my-2"></div>
+          <button
+            className="px-4 py-2 hover:bg-slate-700 rounded-full flex items-center gap-2 transition-colors group"
+            onClick={() => onOpenWindow('rivals')}
+            title="Global Rankings"
+          >
+            <Trophy size={20} className="group-hover:text-purple-400 transition-colors" />
+            <span className="text-sm font-bold">Rivals</span>
           </button>
         </div>
       </div>

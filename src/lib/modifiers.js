@@ -4,9 +4,9 @@
  * and dynamic event-based modifiers
  */
 
-import { CITIES } from '../data/cities';
-import { PROPERTY_TYPES } from '../data/properties';
-import { calculateDistance } from './utils';
+import { CITIES } from '../data/cities.js';
+import { PROPERTY_TYPES } from '../data/properties.js';
+import { calculateDistance } from './utils.js';
 
 // ============================================================================
 // CORE MODIFIER FUNCTIONS

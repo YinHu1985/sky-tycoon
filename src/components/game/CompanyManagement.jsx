@@ -5,10 +5,15 @@ import { formatMoney } from '../../lib/utils';
 import { Star, Wrench, Plane, Megaphone } from 'lucide-react';
 
 export const CompanyManagement = () => {
-  const { company, updateEfforts } = useGameStore(useShallow(state => ({
-    company: state.company,
-    updateEfforts: state.updateEfforts
-  })));
+  const { company, updateEfforts } = useGameStore(useShallow(state => {
+    const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
+    return {
+      company: playerCompany,
+      updateEfforts: state.updateEfforts
+    };
+  }));
+
+  if (!company) return null;
 
   const [maintenanceEffort, setMaintenanceEffort] = useState(company.maintenanceEffort);
   const [serviceEffort, setServiceEffort] = useState(company.serviceEffort);

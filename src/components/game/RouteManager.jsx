@@ -5,16 +5,20 @@ import { CITIES } from '../../data/cities';
 import { PLANE_TYPES } from '../../data/planes';
 import { calculateDistance, formatMoney } from '../../lib/utils';
 import { calculateFrequency } from '../../lib/economy';
-import { Plus, Trash2, TrendingUp, TrendingDown, MapPin, Edit } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, MapPin, Edit, Bot, ToggleLeft, ToggleRight } from 'lucide-react';
 
 export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => {
-  const { company, routes, fleet, addRoute, deleteRoute } = useGameStore(useShallow(state => ({
-    company: state.company,
-    routes: state.company.routes,
-    fleet: state.company.fleet,
-    addRoute: state.addRoute,
-    deleteRoute: state.deleteRoute
-  })));
+  const { company, routes, fleet, addRoute, deleteRoute, updateRoute } = useGameStore(useShallow(state => {
+    const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
+    return {
+      company: playerCompany,
+      routes: playerCompany ? playerCompany.routes : [],
+      fleet: playerCompany ? playerCompany.fleet : {},
+      addRoute: state.addRoute,
+      deleteRoute: state.deleteRoute,
+      updateRoute: state.updateRoute
+    };
+  }));
 
   const [isCreating, setIsCreating] = useState(false);
 
@@ -24,6 +28,8 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
   const [planeTypeId, setPlaneTypeId] = useState('');
   const [assignedCount, setAssignedCount] = useState(1);
   const [priceModifier, setPriceModifier] = useState(0);
+  const [autoManaged, setAutoManaged] = useState(false);
+  const [targetFrequency, setTargetFrequency] = useState(0); // 0 means max
 
   const availablePlanesForRoute = useMemo(() => {
     return Object.keys(fleet).map(id => PLANE_TYPES.find(p => p.id === id)).filter(Boolean);
@@ -40,7 +46,10 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
 
     const dist = calculateDistance(source, target);
     const rangeOk = dist <= planeType.range;
-    const frequency = calculateFrequency(planeTypeId, dist, assignedCount);
+    const maxFrequency = calculateFrequency(planeTypeId, dist, assignedCount);
+    const frequency = (targetFrequency > 0 && targetFrequency <= maxFrequency) 
+      ? targetFrequency 
+      : maxFrequency;
 
     // Check available aircraft
     const owned = fleet[planeTypeId] || 0;
@@ -53,10 +62,11 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
       dist,
       rangeOk,
       frequency,
+      maxFrequency,
       available,
       canCreate: rangeOk && available >= assignedCount && sourceId !== targetId
     };
-  }, [sourceId, targetId, planeTypeId, assignedCount, fleet, routes]);
+  }, [sourceId, targetId, planeTypeId, assignedCount, fleet, routes, targetFrequency]);
 
   const handleCreate = () => {
     if (!routeDetails?.canCreate) return;
@@ -78,7 +88,8 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
       planeTypeId,
       assignedCount,
       frequency: routeDetails.frequency,
-      priceModifier
+      priceModifier,
+      autoManaged
     };
 
     addRoute(newRoute);
@@ -90,6 +101,7 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
     setPlaneTypeId('');
     setAssignedCount(1);
     setPriceModifier(0);
+    setAutoManaged(false);
   };
 
   const handleDelete = (routeId) => {
@@ -201,8 +213,30 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                       min="1"
                       max={Math.max(1, routeDetails.available)}
                       value={assignedCount}
-                      onChange={e => setAssignedCount(parseInt(e.target.value))}
+                      onChange={e => {
+                        setAssignedCount(parseInt(e.target.value));
+                        setTargetFrequency(0); // Reset frequency to max when planes change
+                      }}
                       className="w-full accent-blue-500"
+                      disabled={autoManaged}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Flight Frequency</span>
+                      <span className="text-white font-bold">
+                         {routeDetails.frequency} / {routeDetails.maxFrequency}/wk
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max={routeDetails.maxFrequency}
+                      value={routeDetails.frequency}
+                      onChange={e => setTargetFrequency(parseInt(e.target.value))}
+                      className="w-full accent-sky-500"
+                      disabled={autoManaged}
                     />
                   </div>
 
@@ -221,12 +255,32 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                       value={priceModifier}
                       onChange={e => setPriceModifier(parseInt(e.target.value))}
                       className="w-full accent-emerald-500"
+                      disabled={autoManaged}
                     />
                   </div>
 
                   <div className="flex justify-between text-xs text-slate-300 border-t border-slate-700 pt-2">
                     <span>Est. Frequency:</span>
                     <span className="font-bold">{routeDetails.frequency} round trips/week</span>
+                  </div>
+
+                  <div className="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-600 mt-2">
+                    <div className="flex items-center gap-2">
+                      <Bot size={16} className="text-indigo-400" />
+                      <div>
+                        <div className="text-sm font-bold text-indigo-100">AI Helper</div>
+                        <div className="text-[10px] text-slate-400">Auto-optimize</div>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer"
+                        checked={autoManaged}
+                        onChange={e => setAutoManaged(e.target.checked)}
+                      />
+                      <div className="w-9 h-5 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
                   </div>
                 </>
               )}
@@ -271,6 +325,19 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                     <div className="font-bold text-white flex items-center gap-2 text-lg">
                       <span className="text-xs px-2 py-0.5 bg-slate-900 rounded font-mono">{route.flightNumber}</span>
                       {source.name} <span className="text-slate-500">↔</span> {target.name}
+                      
+                      <button 
+                        onClick={() => updateRoute(route.id, { autoManaged: !route.autoManaged })}
+                        title={route.autoManaged ? "AI Helper Active (Click to disable)" : "Enable AI Helper"}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors ${
+                          route.autoManaged 
+                            ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30' 
+                            : 'bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600 hover:text-indigo-300'
+                        }`}
+                      >
+                        <Bot size={12} />
+                        {route.autoManaged ? 'Auto' : 'Manual'}
+                      </button>
                     </div>
                     <div className="text-xs text-slate-400 mt-1 flex gap-3">
                       <span>{route.assignedCount}x {plane.name}</span>
