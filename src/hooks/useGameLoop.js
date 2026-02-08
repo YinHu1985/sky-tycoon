@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/useGameStore.js';
-import { calculateWeeklyFinance, calculateOptimalRouteConfig } from '../lib/economy.js';
+import { calculateWeeklyFinance, calculateOptimalRouteConfig, calculateFrequency } from '../lib/economy.js';
 import { expireModifiers } from '../lib/modifiers.js';
-import { formatMoney } from '../lib/utils.js';
+import { formatMoney, calculateDistance } from '../lib/utils.js';
+import { CITIES } from '../data/cities.js';
+import { PLANE_TYPES } from '../data/planes.js';
 import {
   scheduleEvents,
   checkScheduledEvents,
@@ -171,16 +173,37 @@ export const useGameLoop = () => {
                 route.assignedCount
               );
 
-              if (config.canFly && (
+              if (config.canFly) {
+                // Calculate optimal assigned count to free up unused planes
+                const source = CITIES.find(c => c.id === route.sourceId);
+                const target = CITIES.find(c => c.id === route.targetId);
+                const dist = calculateDistance(source, target);
+                
+                // Max frequency possible with 1 plane
+                const maxFreqPerPlane = calculateFrequency(route.planeTypeId, dist, 1);
+                
+                // Calculate minimum planes needed for the recommended frequency
+                let neededPlanes = route.assignedCount;
+                if (maxFreqPerPlane > 0) {
+                  neededPlanes = Math.ceil(config.recommendedFrequency / maxFreqPerPlane);
+                }
+                
+                // Ensure we keep at least 1 plane if the route is active
+                neededPlanes = Math.max(1, neededPlanes);
+
+                if (
                   route.frequency !== config.recommendedFrequency || 
-                  route.priceModifier !== config.recommendedPriceModifer
-                )) {
-                hasAutoUpdates = true;
-                return {
-                  ...route,
-                  frequency: config.recommendedFrequency,
-                  priceModifier: config.recommendedPriceModifer
-                };
+                  route.priceModifier !== config.recommendedPriceModifer ||
+                  neededPlanes < route.assignedCount
+                ) {
+                  hasAutoUpdates = true;
+                  return {
+                    ...route,
+                    frequency: config.recommendedFrequency,
+                    priceModifier: config.recommendedPriceModifer,
+                    assignedCount: neededPlanes < route.assignedCount ? neededPlanes : route.assignedCount
+                  };
+                }
               }
             }
             return route;

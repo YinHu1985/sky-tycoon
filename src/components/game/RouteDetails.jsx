@@ -44,9 +44,18 @@ export const RouteDetails = ({ routeId }) => {
     .reduce((sum, r) => sum + r.assignedCount, 0);
   const available = owned - assignedElsewhere;
 
-  const editedFrequency = useMemo(() => {
+  const maxFrequency = useMemo(() => {
     return calculateFrequency(route.planeTypeId, dist, editedAssignedCount);
   }, [route.planeTypeId, dist, editedAssignedCount]);
+
+  const editedFrequency = useMemo(() => {
+    // If we have a user-set target frequency that is valid (<= max), use it.
+    // Otherwise use maxFrequency (default behavior).
+    if (editedTargetFrequency > 0 && editedTargetFrequency <= maxFrequency) {
+      return editedTargetFrequency;
+    }
+    return maxFrequency;
+  }, [editedTargetFrequency, maxFrequency]);
 
   const handleSave = () => {
     updateRoute(routeId, {

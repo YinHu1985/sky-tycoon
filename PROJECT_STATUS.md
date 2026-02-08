@@ -4,7 +4,37 @@
 
 ### New Features Added ✨
 
-#### Visual Assets - Plane & City Images (Latest - Feb 4, 2026)
+#### AI Opponents & Competitors (Latest)
+1. **AI Controller** (`src/lib/AIController.js`)
+   - Automated AI companies that compete with the player
+   - AI buys aircraft based on budget and efficiency
+   - AI automatically opens new routes from its hub
+   - AI manages maintenance and service efforts
+2. **Company Leaderboard** (`src/components/game/CompanyList.jsx`)
+   - Real-time ranking of all airlines by Fame
+   - View competitors' cash, fleet size, and route counts
+   - Toggle visibility of competitor routes on the map
+
+#### Dynamic Event System (Latest)
+3. **Event Engine** (`src/lib/eventSystem.js`)
+   - Random and historical events system
+   - Support for one-time and recurring events
+   - Mean Time To Happen (MTTH) probability mechanics
+4. **Interactive Event Window** (`src/components/game/EventWindow.jsx`)
+   - Modal dialog for important events
+   - Multiple choices with different consequences
+   - Events affect money, fame, relationships, and more
+5. **Event Categories**:
+   - Historical (Olympics, Wars, etc.)
+   - Economic (Booms, Recessions)
+   - Company (Accidents, strikes)
+
+#### Audio System
+6. **Retro Soundtrack** (`src/components/audio/AudioManager.jsx`)
+   - Web Audio API synthesizer for retro aviation music
+   - "Retro Aviation March" generated procedurally
+
+#### Visual Assets - Plane & City Images (Feb 4, 2026)
 1. **Aircraft Photos** - All 47 aircraft types now have real photos from Wikimedia Commons
    - Images displayed in Aircraft Market with proper vertical centering
    - Thumbnail images shown in Your Fleet section
