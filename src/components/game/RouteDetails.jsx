@@ -164,8 +164,7 @@ export const RouteDetails = ({ routeId }) => {
                 setEditedAssignedCount(parseInt(e.target.value));
                 setEditedTargetFrequency(0);
               }}
-              disabled={editedAutoManaged}
-              className={`w-full accent-blue-500 ${editedAutoManaged ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className="w-full accent-blue-500"
             />
           </div>
 
@@ -206,7 +205,7 @@ export const RouteDetails = ({ routeId }) => {
 
           {editedAutoManaged && (
             <div className="text-xs text-indigo-300 italic text-center">
-              Settings locked while AI Helper is active
+              Price & frequency locked while AI Helper is active
             </div>
           )}
 
