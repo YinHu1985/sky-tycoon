@@ -269,6 +269,7 @@ export const useGameLoop = () => {
           date,
           setDate, 
           saveGame,
+          autoSaveFrequency,
           activeEvent,
           pendingEvents
         } = useGameStore.getState();
@@ -308,11 +309,21 @@ export const useGameLoop = () => {
             // Process events (check for scheduled events)
             processEvents(newDate);
 
+            // Auto-save: Daily
+            if (autoSaveFrequency === 'daily') {
+              saveGame(true);
+            }
+
             // Weekly processing (check if week changed)
             const currentWeek = getWeekNumber(newDate);
             if (currentWeek !== lastProcessedWeek.current) {
               lastProcessedWeek.current = currentWeek;
               processWeeklyFinance();
+
+              // Auto-save: Weekly
+              if (autoSaveFrequency === 'weekly') {
+                saveGame(true);
+              }
             }
 
             // Monthly processing for AI (less frequent planning)
@@ -321,13 +332,20 @@ export const useGameLoop = () => {
                 lastProcessedMonth.current = currentMonth;
                 console.log(`[GameLoop] Month changed to ${currentMonth}. Triggering AI processing.`);
                 processAI(useGameStore.getState());
+
+                // Auto-save: Monthly
+                if (autoSaveFrequency === 'monthly') {
+                  saveGame(true);
+                }
             }
 
-            // Auto-save on January 1st
+            // Auto-save on January 1st (Yearly)
             if (newDate.getDate() === 1 && newDate.getMonth() === 0) {
               const oldDate = new Date(date);
               if (oldDate.getFullYear() !== newDate.getFullYear()) {
-                saveGame();
+                if (autoSaveFrequency === 'yearly' || !autoSaveFrequency) {
+                  saveGame(true);
+                }
               }
             }
           }

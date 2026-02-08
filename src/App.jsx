@@ -24,6 +24,8 @@ function App() {
   const debugUnlockAll = useGameStore(state => state.debugUnlockAll);
   const setDebugUnlockAll = useGameStore(state => state.setDebugUnlockAll);
   const saveGame = useGameStore(state => state.saveGame);
+  const autoSaveFrequency = useGameStore(state => state.autoSaveFrequency);
+  const setAutoSaveFrequency = useGameStore(state => state.setAutoSaveFrequency);
   const triggerEvent = useGameStore(state => state.triggerEvent);
   const showNextEvent = useGameStore(state => state.showNextEvent);
   const addNotification = useGameStore(state => state.addNotification);
@@ -140,6 +142,21 @@ function App() {
                     💾 Save Game
                   </button>
                 </div>
+                
+                <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+                  <span>Auto Save Frequency</span>
+                  <select
+                    value={autoSaveFrequency}
+                    onChange={(e) => setAutoSaveFrequency(e.target.value)}
+                    className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-blue-500 outline-none"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <span>Sandbox Mode (Unlock All Planes)</span>
                   <button

@@ -50,6 +50,7 @@ export const useGameStore = create((set, get) => ({
   paused: true,
   speed: 1,
   debugUnlockAll: false,
+  autoSaveFrequency: 'yearly', // daily, weekly, monthly, yearly
 
   // Companies State
   companies: [initialCompany],
@@ -93,6 +94,7 @@ export const useGameStore = create((set, get) => ({
   setSpeed: (speed) => set({ speed }),
   setDate: (date) => set({ date }),
   setDebugUnlockAll: (value) => set({ debugUnlockAll: value }),
+  setAutoSaveFrequency: (frequency) => set({ autoSaveFrequency: frequency }),
 
   addNotification: (msg, type = 'info') => {
     const id = generateId();
@@ -278,7 +280,7 @@ export const useGameStore = create((set, get) => ({
   }),
 
   // Save/Load
-  saveGame: () => {
+  saveGame: (silent = false) => {
     const state = get();
     const saveData = {
       date: state.date.toISOString(),
@@ -286,10 +288,13 @@ export const useGameStore = create((set, get) => ({
       playerCompanyId: state.playerCompanyId,
       tasks: state.tasks,
       debugUnlockAll: state.debugUnlockAll,
+      autoSaveFrequency: state.autoSaveFrequency,
       firedOneTimeEvents: Array.from(state.firedOneTimeEvents)
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
-    get().addNotification('Game Saved Successfully', 'success');
+    if (!silent) {
+      get().addNotification('Game Saved Successfully', 'success');
+    }
   },
 
   loadGame: () => {
@@ -320,6 +325,7 @@ export const useGameStore = create((set, get) => ({
           playerCompanyId: playerCompanyId || 'player',
           tasks: data.tasks || [],
           debugUnlockAll: data.debugUnlockAll || false,
+          autoSaveFrequency: data.autoSaveFrequency || 'yearly',
           firedOneTimeEvents: new Set(data.firedOneTimeEvents || []),
           scheduledEvents: [], 
           pendingEvents: [],
@@ -376,6 +382,7 @@ export const useGameStore = create((set, get) => ({
       playerCompanyId: 'player',
       tasks: [],
       notifications: [],
+      autoSaveFrequency: 'yearly',
       scheduledEvents: [],
       firedOneTimeEvents: new Set(),
       pendingEvents: [],

@@ -51,6 +51,7 @@
 1. **Cost Renaming** - Renamed `opCost` to `fuelCost` for clarity.
 2. **Cost Breakdown** - Added detailed fuel and maintenance cost breakdown in Route Planning.
 3. **Plane Details** - Added Fuel Cost display to Aircraft Market and Route Details.
+4. **Auto Save Settings** - Added configurable auto-save frequency (Daily, Weekly, Monthly, Yearly).
 
 #### Property System Overhaul (Feb 4, 2026)
 1. **Strategic Property Portfolio** - 6 distinct building types with unique purposes
