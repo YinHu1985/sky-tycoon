@@ -29,7 +29,14 @@ export const useGameLoop = () => {
     let animationFrameId;
 
     const processTasks = (currentDate) => {
-      const { tasks, removeTask, updateCompanyData, addNotification, companies, playerCompanyId } = useGameStore.getState();
+      const { tasks, removeTasks, updateCompanyData, addNotification, companies, playerCompanyId } = useGameStore.getState();
+
+      const playerCompany = companies.find(c => c.id === playerCompanyId);
+      if (!playerCompany) return;
+
+      const fleetUpdates = { ...playerCompany.fleet };
+      let hasFleetUpdates = false;
+      const tasksToRemove = [];
 
       tasks.forEach(task => {
         const taskDate = new Date(task.completeDate);
@@ -37,23 +44,27 @@ export const useGameLoop = () => {
           // Task completed
           if (task.type === 'DELIVER_PLANE') {
             const { typeId, count } = task.payload;
-            // Re-fetch company state to get latest fleet count
-            // Assuming tasks are for player company for now
-            const playerCompany = companies.find(c => c.id === playerCompanyId);
-            if (playerCompany) {
-              const currentCount = playerCompany.fleet[typeId] || 0;
-              updateCompanyData(playerCompanyId, {
-                fleet: {
-                  ...playerCompany.fleet,
-                  [typeId]: currentCount + count
-                }
-              });
-              addNotification(`${count}x ${task.name.replace('Delivery: ', '')} delivered!`, 'success');
-            }
+            
+            // Accumulate fleet updates
+            fleetUpdates[typeId] = (fleetUpdates[typeId] || 0) + count;
+            hasFleetUpdates = true;
+            
+            addNotification(`${count}x ${task.name.replace('Delivery: ', '')} delivered!`, 'success');
           }
-          removeTask(task.id);
+          
+          tasksToRemove.push(task.id);
         }
       });
+
+      // Apply all fleet updates in one go
+      if (hasFleetUpdates) {
+        updateCompanyData(playerCompanyId, { fleet: fleetUpdates });
+      }
+
+      // Remove processed tasks
+      if (tasksToRemove.length > 0) {
+        removeTasks(tasksToRemove);
+      }
     };
 
     const processEvents = (currentDate) => {

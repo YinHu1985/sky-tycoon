@@ -77,7 +77,7 @@ Each aircraft type has:
 - **Range**: Maximum range in km
 - **Capacity**: Passenger capacity (seats)
 - **Price**: Purchase price in USD
-- **Operating Cost (opCost)**: Cost per km flown
+- **Fuel Cost (fuelCost)**: Cost per km flown
 - **Maintenance Cost (maint)**: Weekly maintenance cost per aircraft
 - **Idle Cost (idle)**: Weekly cost when aircraft not assigned to routes
 - **Introduction Year**: Year aircraft becomes available

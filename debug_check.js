@@ -13,7 +13,7 @@ CITIES.forEach(c => {
 
 console.log('Checking PLANE_TYPES...');
 PLANE_TYPES.forEach(p => {
-    if (!p.speed || !p.opCost || !p.maint) {
+    if (!p.speed || !p.fuelCost || !p.maint) {
         console.error('Invalid plane:', p);
     }
 });

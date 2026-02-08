@@ -211,6 +211,10 @@ export const useGameStore = create((set, get) => ({
     tasks: state.tasks.filter(t => t.id !== taskId)
   })),
 
+  removeTasks: (taskIds) => set(state => ({
+    tasks: state.tasks.filter(t => !taskIds.includes(t.id))
+  })),
+
   // Event System Management
   setScheduledEvents: (events) => set({ scheduledEvents: events }),
 

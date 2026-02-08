@@ -115,6 +115,7 @@ export const FleetManager = () => {
                 )}
                 <div className="p-3">
                   <div className="font-bold text-lg">{type.name}</div>
+                  <div className="text-xs text-slate-400 mb-1">Fuel: {formatMoney(type.fuelCost)}/km</div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-mono text-green-400">{count}</span>
                     <span className="text-xs text-slate-400">owned</span>
@@ -165,6 +166,7 @@ export const FleetManager = () => {
                       <span>Speed: {plane.speed}km/h</span>
                       <span>Seats: {plane.capacity}</span>
                       <span>Maint: {formatMoney(plane.maint)}/wk</span>
+                      <span className="col-span-2 text-sky-300">Fuel: {formatMoney(plane.fuelCost)}/km</span>
                     </div>
                     <div className="text-xs text-slate-400 mt-2 italic">{plane.desc}</div>
                   </div>

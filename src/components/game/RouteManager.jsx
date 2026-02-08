@@ -58,12 +58,17 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
       .reduce((sum, r) => sum + r.assignedCount, 0);
     const available = owned - assigned;
 
+    const estFuelCost = frequency * 2 * dist * planeType.fuelCost;
+    const estMaintCost = assignedCount * planeType.maint;
+
     return {
       dist,
       rangeOk,
       frequency,
       maxFrequency,
       available,
+      estFuelCost,
+      estMaintCost,
       canCreate: rangeOk && available >= assignedCount && sourceId !== targetId
     };
   }, [sourceId, targetId, planeTypeId, assignedCount, fleet, routes, targetFrequency]);
@@ -259,9 +264,23 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                     />
                   </div>
 
-                  <div className="flex justify-between text-xs text-slate-300 border-t border-slate-700 pt-2">
-                    <span>Est. Frequency:</span>
-                    <span className="font-bold">{routeDetails.frequency} round trips/week</span>
+                  <div className="space-y-1 border-t border-slate-700 pt-2 mt-2">
+                    <div className="flex justify-between text-xs text-slate-300">
+                      <span>Est. Fuel Cost:</span>
+                      <span className="font-mono text-red-300">{formatMoney(routeDetails.estFuelCost)}/wk</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-300">
+                      <span>Est. Maintenance:</span>
+                      <span className="font-mono text-red-300">{formatMoney(routeDetails.estMaintCost)}/wk</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-white font-bold pt-1">
+                      <span>Total Est. Cost:</span>
+                      <span className="font-mono text-red-400">{formatMoney(routeDetails.estFuelCost + routeDetails.estMaintCost)}/wk</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-300 pt-1">
+                      <span>Est. Frequency:</span>
+                      <span className="font-bold">{routeDetails.frequency} round trips/week</span>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between bg-slate-800 p-2 rounded border border-slate-600 mt-2">

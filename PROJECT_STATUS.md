@@ -47,6 +47,11 @@
    - Cities: 400x225px with `object-cover` for scenic headers
 4. **Download Script** - `scripts/download-images.mjs` for sourcing images from Wikimedia Commons
 
+#### Economy & UI Update (Feb 8, 2026)
+1. **Cost Renaming** - Renamed `opCost` to `fuelCost` for clarity.
+2. **Cost Breakdown** - Added detailed fuel and maintenance cost breakdown in Route Planning.
+3. **Plane Details** - Added Fuel Cost display to Aircraft Market and Route Details.
+
 #### Property System Overhaul (Feb 4, 2026)
 1. **Strategic Property Portfolio** - 6 distinct building types with unique purposes
 2. **Separated Income Calculations** - Properties now have separate business and tourism income multipliers

@@ -75,10 +75,10 @@ function buyNewPlane(company, performAction, date) {
     return;
   }
 
-  // Filter out "bad" planes (supersonic/experimental with high opCost) unless we are rich
-  // Heuristic: OpCost per seat > 2.0 is considered "inefficient" (Standard jets are ~0.4)
+  // Filter out "bad" planes (supersonic/experimental with high fuelCost) unless we are rich
+  // Heuristic: FuelCost per seat > 2.0 is considered "inefficient" (Standard jets are ~0.4)
   // Only apply this filter if we have other options.
-  const efficientPlanes = availablePlanes.filter(p => (p.opCost / p.capacity) < 2.0);
+  const efficientPlanes = availablePlanes.filter(p => (p.fuelCost / p.capacity) < 2.0);
   
   // If we have efficient options, use them. Otherwise (e.g. early game only small planes?), fallback to all.
   const candidates = efficientPlanes.length > 0 ? efficientPlanes : availablePlanes;

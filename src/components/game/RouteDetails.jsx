@@ -116,6 +116,7 @@ export const RouteDetails = ({ routeId }) => {
           <div className="bg-slate-800 p-2 rounded">
             <div className="text-slate-400 text-xs">Aircraft</div>
             <div className="text-white">{plane.name}</div>
+            <div className="text-xs text-sky-400">{formatMoney(plane.fuelCost)}/km fuel</div>
           </div>
         </div>
       </div>

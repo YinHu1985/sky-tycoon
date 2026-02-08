@@ -90,7 +90,7 @@ export const calculateFlightRouteIncome = (company, route) => {
 
   // 5. Costs with Modifiers
   // Flight operations cost (affected by service effort)
-  let flightOpsCost = route.frequency * (2 * dist * type.opCost);
+  let flightOpsCost = route.frequency * (2 * dist * type.fuelCost);
   const flightCostMods = getModifiersForTarget(company, 'flightCost', {
     sourceId: route.sourceId,
     targetId: route.targetId,
