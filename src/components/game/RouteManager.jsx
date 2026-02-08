@@ -5,7 +5,7 @@ import { CITIES } from '../../data/cities';
 import { PLANE_TYPES } from '../../data/planes';
 import { calculateDistance, formatMoney } from '../../lib/utils';
 import { calculateFrequency } from '../../lib/economy';
-import { Plus, Trash2, TrendingUp, TrendingDown, MapPin, Edit, Bot, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, MapPin, Edit, Bot, ToggleLeft, ToggleRight, Minus } from 'lucide-react';
 
 export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => {
   const { company, routes, fleet, addRoute, deleteRoute, updateRoute } = useGameStore(useShallow(state => {
@@ -31,9 +31,39 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
   const [autoManaged, setAutoManaged] = useState(false);
   const [targetFrequency, setTargetFrequency] = useState(0); // 0 means max
 
+  // Sorting state
+  const [sortMode, setSortMode] = useState('flightNumber'); // 'flightNumber' | 'revenue' | 'profit'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
+
   const availablePlanesForRoute = useMemo(() => {
     return Object.keys(fleet).map(id => PLANE_TYPES.find(p => p.id === id)).filter(Boolean);
   }, [fleet]);
+
+  const sortedRoutes = useMemo(() => {
+    const getFlightNum = (fn) => {
+      if (!fn) return 0;
+      const num = parseInt(String(fn).replace(/^\D+/, ''), 10);
+      return isNaN(num) ? 0 : num;
+    };
+    const getRevenue = (r) => (r.stats && typeof r.stats.revenue === 'number') ? r.stats.revenue : 0;
+    const getProfit = (r) => (r.stats && typeof r.stats.profitLastWeek === 'number') ? r.stats.profitLastWeek : 0;
+
+    const arr = [...routes];
+    arr.sort((a, b) => {
+      switch (sortMode) {
+        case 'revenue':
+          return sortDirection === 'asc' ? (getRevenue(a) - getRevenue(b)) : (getRevenue(b) - getRevenue(a));
+        case 'profit':
+          return sortDirection === 'asc' ? (getProfit(a) - getProfit(b)) : (getProfit(b) - getProfit(a));
+        case 'flightNumber':
+        default:
+          return sortDirection === 'asc' 
+            ? (getFlightNum(a.flightNumber) - getFlightNum(b.flightNumber))
+            : (getFlightNum(b.flightNumber) - getFlightNum(a.flightNumber));
+      }
+    });
+    return arr;
+  }, [routes, sortMode, sortDirection]);
 
   const routeDetails = useMemo(() => {
     if (!sourceId || !targetId || !planeTypeId) return null;
@@ -113,6 +143,29 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
     deleteRoute(routeId);
   };
 
+  const handleQuickDecrease = (route) => {
+    const newCount = Math.max(1, (route.assignedCount || 1) - 1);
+    if (newCount !== route.assignedCount) {
+      updateRoute(route.id, { assignedCount: newCount });
+    }
+  };
+
+  const handleQuickIncrease = (route) => {
+    const owned = company.fleet[route.planeTypeId] || 0;
+    const assignedElsewhere = company.routes
+      .filter(r => r.id !== route.id && r.planeTypeId === route.planeTypeId)
+      .reduce((sum, r) => sum + (r.assignedCount || 0), 0);
+    const available = Math.max(0, owned - assignedElsewhere);
+
+    if (available <= 0) {
+      return;
+    }
+    const newCount = (route.assignedCount || 0) + 1;
+    if (newCount <= owned - assignedElsewhere) {
+      updateRoute(route.id, { assignedCount: newCount });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-between items-center">
@@ -124,6 +177,53 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
           <Plus size={16} /> New Route
         </button>
       </div>
+
+      {!isCreating && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-400">Sort by:</span>
+          <button
+            onClick={() => setSortMode('flightNumber')}
+            className={`px-2 py-1 rounded border ${
+              sortMode === 'flightNumber'
+                ? 'bg-slate-600 border-slate-500 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+            }`}
+            title="Sort by Airline Number (desc)"
+          >
+            Airline No.
+          </button>
+          <button
+            onClick={() => setSortMode('revenue')}
+            className={`px-2 py-1 rounded border ${
+              sortMode === 'revenue'
+                ? 'bg-slate-600 border-slate-500 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+            }`}
+            title="Sort by Revenue (desc)"
+          >
+            Revenue
+          </button>
+          <button
+            onClick={() => setSortMode('profit')}
+            className={`px-2 py-1 rounded border ${
+              sortMode === 'profit'
+                ? 'bg-slate-600 border-slate-500 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600'
+            }`}
+            title="Sort by Profit (desc)"
+          >
+            Profit
+          </button>
+          <button
+            onClick={() => setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc')}
+            className="ml-2 px-2 py-1 rounded border bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600 flex items-center gap-1"
+            title="Toggle sort direction"
+          >
+            {sortDirection === 'desc' ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+            {sortDirection === 'desc' ? 'Desc' : 'Asc'}
+          </button>
+        </div>
+      )}
 
       {isCreating && (
         <div className="bg-slate-700 p-4 rounded border border-slate-500 animate-in fade-in slide-in-from-top-2">
@@ -326,7 +426,7 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
 
       {!isCreating && (
         <div className="space-y-3">
-          {routes.map(route => {
+          {sortedRoutes.map(route => {
             const source = CITIES.find(c => c.id === route.sourceId);
             const target = CITIES.find(c => c.id === route.targetId);
             const plane = PLANE_TYPES.find(p => p.id === route.planeTypeId);
@@ -359,7 +459,23 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                       </button>
                     </div>
                     <div className="text-xs text-slate-400 mt-1 flex gap-3">
-                      <span>{route.assignedCount}x {plane.name}</span>
+                  <span className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleQuickDecrease(route)}
+                      className="text-slate-300 hover:text-white p-0.5"
+                      title="Decrease Assigned Aircraft"
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span className="font-mono">{route.assignedCount}</span>x {plane.name}
+                    <button
+                      onClick={() => handleQuickIncrease(route)}
+                      className="text-slate-300 hover:text-white p-0.5"
+                      title="Increase Assigned Aircraft"
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </span>
                       <span>{route.frequency} trips/wk</span>
                       {route.priceModifier !== 0 && (
                         <span className={route.priceModifier > 0 ? 'text-green-400' : 'text-amber-400'}>
