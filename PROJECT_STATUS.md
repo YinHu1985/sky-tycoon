@@ -311,9 +311,9 @@ scripts/
 
 **Root Cause**: Task processing was reading company state once and reusing it for all deliveries, causing concurrent updates to overwrite each other.
 
-**Fix**: Modified `useGameLoop.js` to re-fetch company state for each task completion, ensuring each delivery sees the latest fleet count.
+**Fix**: Refactored task processing to batch all fleet updates into a single state change, preventing race conditions when multiple deliveries occur simultaneously.
 
-**Location**: `src/hooks/useGameLoop.js:27` - Added `const { company } = useGameStore.getState()` inside task processing loop.
+**Location**: `src/hooks/useGameLoop.js` - implemented `fleetUpdates` accumulator pattern.
 
 ### ✅ Fixed: Route Lines Across Antimeridian
 **Issue**: Flight routes crossing the International Date Line displayed horizontal lines across the entire map instead of proper curved paths.
@@ -338,11 +338,16 @@ scripts/
 3. **Aircraft Resale**: Allow selling unused aircraft (currently can only buy)
 
 ### Low Priority
-4. **Random Events**: Add fuel crises, disasters, opportunities
-5. **Achievements**: Add milestone tracking
-6. **Tutorial**: Add onboarding for new players
+4. **Achievements**: Add milestone tracking
+5. **Tutorial**: Add onboarding for new players
 
 ## Testing Checklist
+
+### ✅ Automated Unit Tests
+- [x] **Economy Logic**: `src/lib/economy.test.js` (Fuel costs, financials)
+- [x] **AI Logic**: `src/lib/AIController.test.js` (Purchasing heuristics)
+- [x] **Utils**: `src/lib/utils.test.js` (Geodesic math)
+- [x] **Data Integrity**: `src/data/data.test.js` (City/Plane validation)
 
 ### ✅ Build Test
 - [x] `npm run build` succeeds

@@ -162,7 +162,7 @@ routeRevenue = passengers × actualTicket
 
 **Flight Operations Cost**:
 ```
-flightOpsCost = frequency × (2 × distance × opCostPerKm)
+flightOpsCost = frequency * (2 * distance * fuelCost)
 ```
 - Covers fuel, crew, airport fees
 - Frequency = number of round trips per week
@@ -433,7 +433,7 @@ geoToPixel(lat, lon):
 1. **Bidirectional Routes**: Routes are symmetric (no separate outbound/inbound)
 2. **Simplified Operations**: No crew management, fuel purchasing, or maintenance events
 3. **Static City Demand**: City attributes don't change over time
-4. **No Competition**: Single-player, no AI airlines
+4. **Competition**: Basic AI airlines compete for routes (Monthly decision cycle)
 5. **No Random Events**: No strikes, disasters, or market fluctuations (yet)
 6. **Instant Route Creation**: No setup time for new routes
 7. **No Aircraft Retirement**: Owned aircraft never age out or need replacement
@@ -503,6 +503,7 @@ src/
 │   │   ├── FleetManager.jsx
 │   │   ├── RouteManager.jsx
 │   │   ├── RoutePlanner.jsx
+│   │   ├── RouteDetails.jsx
 │   │   ├── CityDetails.jsx
 │   │   └── FinancialReport.jsx
 │   ├── map/           # Map rendering
@@ -516,6 +517,7 @@ src/
 ├── data/
 │   ├── cities.js      # City definitions
 │   ├── planes.js      # Aircraft catalog
+│   ├── events/        # Event definitions
 │   └── constants.js   # Game constants
 ├── hooks/
 │   ├── useGameLoop.js
@@ -523,7 +525,9 @@ src/
 ├── lib/
 │   ├── utils.js       # Helper functions
 │   ├── economy.js     # Economic calculations
-│   └── geometry.js    # Map math
+│   ├── geometry.js    # Map math
+│   ├── AIController.js # AI Logic
+│   └── eventSystem.js # Event system
 ├── store/
 │   └── useGameStore.js  # Zustand store
 ├── App.jsx
@@ -533,6 +537,15 @@ src/
 ---
 
 ## Testing Scenarios
+
+### Automated Unit Tests
+The project includes a suite of Vitest unit tests for core logic:
+- `npm test`: Runs all tests
+- **Coverage**:
+  - `economy.test.js`: Financial calculations, frequency, and flight costs
+  - `AIController.test.js`: AI decision making and purchasing logic
+  - `utils.test.js`: Geodesic math and map helpers
+  - `data.test.js`: Validation of static data (cities, planes)
 
 ### Game Start
 1. Create new airline with custom name/code
@@ -598,7 +611,7 @@ src/
 - **Load Factor**: Percentage of seats filled (occupancy rate)
 - **Round Trip**: Outbound + return flight (2 legs)
 - **Frequency**: Number of round trips per week
-- **Operating Cost**: Variable cost per kilometer flown
+- **Fuel Cost**: Variable cost per kilometer flown
 - **Maintenance Cost**: Fixed weekly cost per aircraft
 - **Idle Cost**: Weekly cost for unused aircraft
 - **Great Circle**: Shortest path between two points on a sphere
