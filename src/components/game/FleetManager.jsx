@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { PLANE_TYPES } from '../../data/planes';
 import { useGameStore } from '../../store/useGameStore';
 import { formatMoney } from '../../lib/utils';
-import { Plane, Clock, Package } from 'lucide-react';
+import { Plane, Clock, Package, ChevronDown, ChevronRight } from 'lucide-react';
 
 export const FleetManager = () => {
   const { company, date, tasks, debugUnlockAll, updateCompany, addTask, addNotification, buyPlane } = useGameStore(useShallow(state => {
@@ -24,6 +24,7 @@ export const FleetManager = () => {
 
   const { fleet, money } = company;
   const currentYear = date.getFullYear();
+  const [showPending, setShowPending] = React.useState(false);
 
   const handleBuyPlane = (plane) => {
     if (money < plane.price) {
@@ -58,12 +59,33 @@ export const FleetManager = () => {
   return (
     <div className="flex flex-col gap-6">
       {/* Pending Deliveries */}
-      {pendingDeliveries.length > 0 && (
-        <div>
-          <h3 className="text-xl font-bold mb-4 text-amber-400 flex items-center gap-2">
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-amber-400 flex items-center gap-2">
             <Clock size={20} />
             Pending Deliveries ({pendingDeliveries.length})
           </h3>
+          <button
+            onClick={() => setShowPending(v => !v)}
+            disabled={pendingDeliveries.length === 0}
+            className={`px-2 py-1 rounded border text-xs flex items-center gap-1 ${
+              pendingDeliveries.length === 0
+                ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                : 'text-amber-400 hover:text-amber-300 border-amber-700 bg-amber-900/20'
+            }`}
+            title={
+              pendingDeliveries.length === 0
+                ? 'No pending deliveries'
+                : showPending
+                ? 'Collapse list'
+                : 'Expand list'
+            }
+          >
+            {showPending ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {showPending ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {showPending && pendingDeliveries.length > 0 && (
           <div className="space-y-2">
             {pendingDeliveries.map(task => {
               const deliveryDate = new Date(task.completeDate);
@@ -86,8 +108,8 @@ export const FleetManager = () => {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Current Fleet */}
       <div>
