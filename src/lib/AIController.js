@@ -234,9 +234,9 @@ function openNewRoute(company, performAction, date) {
       const betterPlanes = PLANE_TYPES.filter(p => 
           p.range > currentMaxRange &&
           company.money >= p.price && 
-          (!p.availableFrom || date.getFullYear() >= p.availableFrom) &&
-          (!p.availableUntil || date.getFullYear() <= p.availableUntil)
-      ).sort((a, b) => b.range - a.range); // Sort by range descending
+          (!p.intro || date.getFullYear() >= p.intro) &&
+          (!p.end || date.getFullYear() <= p.end)
+      ).sort((a, b) => b.range - a.range);
 
       if (betterPlanes.length > 0) {
           const planeToBuy = betterPlanes[0]; // Buy the longest range one we can afford
