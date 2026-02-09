@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Plane } from 'lucide-react';
 import { CITIES } from '../../data/cities';
 import { useGameStore } from '../../store/useGameStore';
@@ -7,8 +7,9 @@ export const MainMenu = () => {
   const [name, setName] = useState('Skyways International');
   const [code, setCode] = useState('SKW');
   const [hq, setHq] = useState('nyc');
+  const fileInputRef = useRef(null);
 
-  const { newGame, loadGame, hasSave, getSaveDate } = useGameStore();
+  const { newGame, loadGame, hasSave, getSaveDate, importSave, addNotification } = useGameStore();
 
   const savedGame = hasSave();
   const savedDate = getSaveDate();
@@ -19,6 +20,28 @@ export const MainMenu = () => {
 
   const handleLoadGame = () => {
     loadGame();
+  };
+  
+  const handleImportClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+  
+  const handleImportFile = async (e) => {
+    try {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const ok = importSave(data);
+      if (!ok) {
+        addNotification('Import failed', 'error');
+      }
+    } catch (err) {
+      addNotification('Invalid save file', 'error');
+    }
   };
 
   return (
@@ -95,6 +118,22 @@ export const MainMenu = () => {
             >
               Start New Airline
             </button>
+            
+            <div className="pt-4 border-t border-slate-700 space-y-3">
+              <button
+                onClick={handleImportClick}
+                className="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold text-md shadow-lg transition-all"
+              >
+                Resume by Import JSON
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={handleImportFile}
+              />
+            </div>
 
             {savedGame && (
               <div className="pt-4 border-t border-slate-700 space-y-3">

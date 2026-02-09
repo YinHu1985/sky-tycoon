@@ -26,6 +26,7 @@ function App() {
   const saveGame = useGameStore(state => state.saveGame);
   const autoSaveFrequency = useGameStore(state => state.autoSaveFrequency);
   const setAutoSaveFrequency = useGameStore(state => state.setAutoSaveFrequency);
+  const getSaveData = useGameStore(state => state.getSaveData);
   const triggerEvent = useGameStore(state => state.triggerEvent);
   const showNextEvent = useGameStore(state => state.showNextEvent);
   const addNotification = useGameStore(state => state.addNotification);
@@ -140,6 +141,33 @@ function App() {
                     className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-1"
                   >
                     💾 Save Game
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span>Export Save (JSON)</span>
+                  <button
+                    onClick={() => {
+                      try {
+                        const data = getSaveData();
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        const dateStr = new Date(data.date).toISOString().split('T')[0];
+                        a.href = url;
+                        a.download = `sky-tycoon-save-${dateStr}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        addNotification('Exported save to JSON', 'success');
+                      } catch (e) {
+                        addNotification('Failed to export save', 'error');
+                      }
+                    }}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-xs font-bold"
+                  >
+                    ⬇ Export
                   </button>
                 </div>
                 

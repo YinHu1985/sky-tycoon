@@ -296,6 +296,19 @@ export const useGameStore = create((set, get) => ({
       get().addNotification('Game Saved Successfully', 'success');
     }
   },
+  
+  getSaveData: () => {
+    const state = get();
+    return {
+      date: state.date.toISOString(),
+      companies: state.companies,
+      playerCompanyId: state.playerCompanyId,
+      tasks: state.tasks,
+      debugUnlockAll: state.debugUnlockAll,
+      autoSaveFrequency: state.autoSaveFrequency,
+      firedOneTimeEvents: Array.from(state.firedOneTimeEvents)
+    };
+  },
 
   loadGame: () => {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -342,6 +355,45 @@ export const useGameStore = create((set, get) => ({
       }
     }
     return false;
+  },
+  
+  importSave: (data) => {
+    try {
+      let companies = data.companies;
+      let playerCompanyId = data.playerCompanyId;
+      
+      if (!companies && data.company) {
+        const oldCompany = { ...data.company, id: 'player', isPlayer: true };
+        companies = [oldCompany];
+        playerCompanyId = 'player';
+      }
+      
+      if (companies && companies.length === 1 && companies[0].isPlayer) {
+        const aiCompanies = generateAICompanies(3, companies[0].hq);
+        companies = [...companies, ...aiCompanies];
+      }
+      
+      set({
+        date: new Date(data.date),
+        companies: companies,
+        playerCompanyId: playerCompanyId || 'player',
+        tasks: data.tasks || [],
+        debugUnlockAll: data.debugUnlockAll || false,
+        autoSaveFrequency: data.autoSaveFrequency || 'yearly',
+        firedOneTimeEvents: new Set(data.firedOneTimeEvents || []),
+        scheduledEvents: [], 
+        pendingEvents: [],
+        activeEvent: null,
+        gameStarted: true,
+        paused: true
+      });
+      get().addNotification('Save Imported Successfully', 'success');
+      return true;
+    } catch (e) {
+      console.error('Failed to import save data:', e);
+      get().addNotification('Failed to Import Save', 'error');
+      return false;
+    }
   },
 
   hasSave: () => {
