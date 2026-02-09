@@ -9,14 +9,26 @@ export const MAP_WIDTH = 2000;
 export const MAP_HEIGHT = 1000;
 export const START_YEAR = 1950;
 
+const distanceCache = new Map();
+
 export const calculateDistance = (c1, c2) => {
+  if (!c1 || !c2) return 0;
+  const id1 = c1.id || `${c1.lat}:${c1.lon}`;
+  const id2 = c2.id || `${c2.lat}:${c2.lon}`;
+  const first = id1 < id2 ? id1 : id2;
+  const second = id1 < id2 ? id2 : id1;
+  const key = `${first}|${second}`;
+  const cached = distanceCache.get(key);
+  if (typeof cached === 'number') return cached;
   const R = 6371;
   const dLat = (c2.lat - c1.lat) * Math.PI / 180;
   const dLon = (c2.lon - c1.lon) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(c1.lat * Math.PI / 180) * Math.cos(c2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return Math.round(R * c);
+  const hav = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(c1.lat * Math.PI / 180) * Math.cos(c2.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1-hav));
+  const dist = Math.round(R * c);
+  distanceCache.set(key, dist);
+  return dist;
 };
 
 export const calculateFlightTime = (distance, speed) => {

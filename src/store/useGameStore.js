@@ -78,6 +78,9 @@ export const useGameStore = create((set, get) => ({
   // UI State
   notifications: [],
   hiddenCompanyRoutes: [], // Array of company IDs whose routes should be hidden on map
+  
+  // UI memory
+  lastRouteSourceId: null,
 
   // Actions
   toggleCompanyRoutes: (companyId) => set(state => {
@@ -95,6 +98,7 @@ export const useGameStore = create((set, get) => ({
   setDate: (date) => set({ date }),
   setDebugUnlockAll: (value) => set({ debugUnlockAll: value }),
   setAutoSaveFrequency: (frequency) => set({ autoSaveFrequency: frequency }),
+  setLastRouteSourceId: (cityId) => set({ lastRouteSourceId: cityId }),
 
   addNotification: (msg, type = 'info') => {
     const id = generateId();

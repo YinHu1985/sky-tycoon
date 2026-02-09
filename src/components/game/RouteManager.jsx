@@ -8,7 +8,7 @@ import { calculateFrequency } from '../../lib/economy';
 import { Plus, Trash2, TrendingUp, TrendingDown, MapPin, Edit, Bot, ToggleLeft, ToggleRight, Minus } from 'lucide-react';
 
 export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => {
-  const { company, routes, fleet, addRoute, deleteRoute, updateRoute } = useGameStore(useShallow(state => {
+  const { company, routes, fleet, addRoute, deleteRoute, updateRoute, lastRouteSourceId, setLastRouteSourceId } = useGameStore(useShallow(state => {
     const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
     return {
       company: playerCompany,
@@ -16,7 +16,9 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
       fleet: playerCompany ? playerCompany.fleet : {},
       addRoute: state.addRoute,
       deleteRoute: state.deleteRoute,
-      updateRoute: state.updateRoute
+      updateRoute: state.updateRoute,
+      lastRouteSourceId: state.lastRouteSourceId,
+      setLastRouteSourceId: state.setLastRouteSourceId
     };
   }));
 
@@ -30,6 +32,17 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
   const [priceModifier, setPriceModifier] = useState(0);
   const [autoManaged, setAutoManaged] = useState(false);
   const [targetFrequency, setTargetFrequency] = useState(0); // 0 means max
+
+  const handleOpenCreate = () => {
+    setIsCreating(true);
+    if (!sourceId && lastRouteSourceId) {
+      setSourceId(lastRouteSourceId);
+    }
+  };
+  const handleSetSourceId = (val) => {
+    setSourceId(val);
+    if (val) setLastRouteSourceId(val);
+  };
 
   // Sorting state
   const [sortMode, setSortMode] = useState('flightNumber'); // 'flightNumber' | 'revenue' | 'profit'
@@ -171,7 +184,7 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-bold text-sky-400">Routes ({company.routes.length})</h3>
         <button 
-          onClick={() => setIsCreating(true)}
+          onClick={handleOpenCreate}
           className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded flex items-center gap-2 text-sm font-bold"
         >
           <Plus size={16} /> New Route
@@ -235,14 +248,42 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                 <select
                   className="flex-1 bg-slate-800 border border-slate-600 rounded p-2 text-white"
                   value={sourceId}
-                  onChange={e => setSourceId(e.target.value)}
+                  onChange={e => handleSetSourceId(e.target.value)}
                 >
                   <option value="">Select City</option>
-                  {CITIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {CITIES.filter(c => {
+                    if (!targetId) return true;
+                    const exists = routes.some(r =>
+                      (r.sourceId === c.id && r.targetId === targetId) ||
+                      (r.sourceId === targetId && r.targetId === c.id)
+                    );
+                    if (exists) return false;
+                    if (planeTypeId) {
+                      const other = CITIES.find(x => x.id === targetId);
+                      const plane = PLANE_TYPES.find(p => p.id === planeTypeId);
+                      if (other && plane) {
+                        const km = calculateDistance(c, other);
+                        if (km > plane.range) return false;
+                      }
+                    }
+                    return true;
+                  }).map(c => {
+                    const label = (() => {
+                      if (targetId) {
+                        const other = CITIES.find(x => x.id === targetId);
+                        if (other) {
+                          const km = calculateDistance(c, other);
+                          return `${c.name} (${km} km)`;
+                        }
+                      }
+                      return c.name;
+                    })();
+                    return <option key={c.id} value={c.id}>{label}</option>;
+                  })}
                 </select>
                 {onRequestCitySelection && (
                   <button
-                    onClick={() => onRequestCitySelection({ type: 'route-source', onSelect: setSourceId })}
+                    onClick={() => onRequestCitySelection({ type: 'route-source', onSelect: handleSetSourceId })}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-3 rounded flex items-center gap-1"
                     title="Select from Map"
                   >
@@ -260,7 +301,35 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
                   onChange={e => setTargetId(e.target.value)}
                 >
                   <option value="">Select City</option>
-                  {CITIES.filter(c => c.id !== sourceId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {CITIES.filter(c => c.id !== sourceId).filter(c => {
+                    if (!sourceId) return true;
+                    const exists = routes.some(r =>
+                      (r.sourceId === sourceId && r.targetId === c.id) ||
+                      (r.sourceId === c.id && r.targetId === sourceId)
+                    );
+                    if (exists) return false;
+                    if (planeTypeId) {
+                      const other = CITIES.find(x => x.id === sourceId);
+                      const plane = PLANE_TYPES.find(p => p.id === planeTypeId);
+                      if (other && plane) {
+                        const km = calculateDistance(other, c);
+                        if (km > plane.range) return false;
+                      }
+                    }
+                    return true;
+                  }).map(c => {
+                    const label = (() => {
+                      if (sourceId) {
+                        const other = CITIES.find(x => x.id === sourceId);
+                        if (other) {
+                          const km = calculateDistance(other, c);
+                          return `${c.name} (${km} km)`;
+                        }
+                      }
+                      return c.name;
+                    })();
+                    return <option key={c.id} value={c.id}>{label}</option>;
+                  })}
                 </select>
                 {onRequestCitySelection && (
                   <button
