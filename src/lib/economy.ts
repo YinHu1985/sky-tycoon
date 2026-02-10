@@ -242,7 +242,7 @@ export const calculateFrequency = (planeTypeId: string, distance: number, assign
   if (distance <= 0) return 0;
 
   const flightTime = distance / type.speed;
-  const roundTripTime = (flightTime * 2) + (type.turnaroundTime || 4); // Use defined turnaround time or default 4h
+  const roundTripTime = (flightTime * 2) + 4; // 4 hour turnaround
   
   if (roundTripTime <= 0) return 0;
 

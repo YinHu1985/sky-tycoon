@@ -114,7 +114,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ onCityClick, selectionMode, 
 
   const handleZoomIn = () => {
     const maxZoom = 4;
-    setZoom(prev => Math.min(maxZoom, prev / 1.2));
+    setZoom(prev => Math.min(maxZoom, prev * 1.2));
   };
 
   const handleZoomOut = () => {

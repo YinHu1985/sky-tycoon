@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { START_YEAR, generateId } from '../lib/utils';
 import { CompanyActions } from '../lib/CompanyActions';
+import { generateAICompanies } from '../lib/AIUtils';
 import { Company, Modifier, Route, OwnedProperty, ScheduledEvent } from '../types';
 
 const SAVE_KEY = 'airline_tycoon_save_v3'; // Incremented version
@@ -450,12 +451,19 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   newGame: (name, code, hq) => {
     get().resetGame();
+    
+    // Generate AI companies
+    const aiCompanies = generateAICompanies(3, hq); // Generate 3 AI competitors, avoiding player HQ
+
     set(state => ({
       gameStarted: true,
       paused: true,
-      companies: state.companies.map(c => 
-        c.id === 'player' ? { ...c, name, code, hq } : c
-      )
+      companies: [
+        // Update player company
+        { ...state.companies[0], name, code, hq },
+        // Add AI companies
+        ...aiCompanies
+      ]
     }));
     get().addNotification(`Welcome to ${name}!`, 'success');
   }

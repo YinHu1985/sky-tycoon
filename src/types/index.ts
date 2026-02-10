@@ -24,7 +24,6 @@ export interface PlaneType {
   intro: number;
   end: number;
   desc: string;
-  turnaroundTime?: number;
 }
 
 export interface PropertyType {

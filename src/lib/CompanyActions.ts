@@ -1,5 +1,6 @@
-import { generateId } from './utils';
+import { generateId, calculateDistance } from './utils';
 import { PROPERTY_TYPES } from '../data/properties';
+import { CITIES } from '../data/cities';
 import { Company, Route, OwnedProperty, Modifier } from '../types';
 
 /**
@@ -11,6 +12,14 @@ import { Company, Route, OwnedProperty, Modifier } from '../types';
 export const CompanyActions = {
   ADD_ROUTE: (company: Company, payload: Partial<Route>): Partial<Company> => {
     const flightNumber = `${company.code}${company.nextFlightNum}`;
+    
+    // Resolve cities and calculate distance
+    const fromId = (payload as any).sourceId || payload.from;
+    const toId = (payload as any).targetId || payload.to;
+    const fromCity = CITIES.find(c => c.id === fromId);
+    const toCity = CITIES.find(c => c.id === toId);
+    const distance = (fromCity && toCity) ? calculateDistance(fromCity, toCity) : 0;
+
     const newRoute: Route = {
       ...payload as any, // Cast to any to merge payload with defaults. Ideally payload should match Route creation params
       id: payload.id || generateId(),
@@ -21,8 +30,9 @@ export const CompanyActions = {
       // Based on usage in AIController: sourceId, targetId, planeTypeId, assignedCount, frequency, priceModifier, autoManaged
       // But Route interface uses 'from' and 'to'.
       // We should probably normalize this.
-      from: (payload as any).sourceId || payload.from,
-      to: (payload as any).targetId || payload.to,
+      from: fromId,
+      to: toId,
+      distance,
       
       stats: {
         profitLastWeek: 0,
