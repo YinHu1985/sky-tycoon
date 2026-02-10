@@ -1,0 +1,352 @@
+import React, { useState, useEffect } from 'react';
+import { useGameStore } from './store/useGameStore';
+import { useGameLoop } from './hooks/useGameLoop';
+import { MainMenu } from './components/ui/MainMenu';
+import { WorldMap } from './components/map/WorldMap';
+import { Dashboard } from './components/ui/Dashboard';
+import { GameWindow } from './components/layout/GameWindow';
+import { FleetManager } from './components/game/FleetManager';
+import { RouteManager } from './components/game/RouteManager';
+import { FinancialReport } from './components/game/FinancialReport';
+import { CityDetails } from './components/game/CityDetails';
+import { RouteDetails } from './components/game/RouteDetails';
+import { CompanyManagement } from './components/game/CompanyManagement';
+import { CompanyList } from './components/game/CompanyList';
+import { EventWindow } from './components/game/EventWindow';
+import AudioManager from './components/audio/AudioManager';
+import { City } from './types';
+import { Settings } from 'lucide-react';
+
+interface MapSelectionMode {
+  type: string; // Changed from 'route' to string to match RouteManager
+  onSelect: (cityId: string) => void;
+}
+
+interface PendingRouteCreation {
+  sourceId: string;
+  targetId: string;
+}
+
+const App: React.FC = () => {
+  useGameLoop(); // Start game loop
+
+  const gameStarted = useGameStore(state => state.gameStarted);
+  const notifications = useGameStore(state => state.notifications);
+  const debugUnlockAll = useGameStore(state => state.debugUnlockAll);
+  const setDebugUnlockAll = useGameStore(state => state.setDebugUnlockAll);
+  const saveGame = useGameStore(state => state.saveGame);
+  const autoSaveFrequency = useGameStore(state => state.autoSaveFrequency);
+  const setAutoSaveFrequency = useGameStore(state => state.setAutoSaveFrequency);
+  const getSaveData = useGameStore(state => state.getSaveData);
+  const triggerEvent = useGameStore(state => state.triggerEvent);
+  const showNextEvent = useGameStore(state => state.showNextEvent);
+  const addNotification = useGameStore(state => state.addNotification);
+  const paused = useGameStore(state => state.paused);
+  const setPaused = useGameStore(state => state.setPaused);
+
+  const [openWindows, setOpenWindows] = useState<string[]>([]);
+  const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  const [secondCity, setSecondCity] = useState<City | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [pendingRouteCreation, setPendingRouteCreation] = useState<PendingRouteCreation | null>(null);
+  const [mapSelectionMode, setMapSelectionMode] = useState<MapSelectionMode | null>(null);
+  const [debugEventId, setDebugEventId] = useState(''); // For debug event triggering
+
+  useEffect(() => {
+    // Prevent default space bar scrolling
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !(e.target as HTMLElement).matches('input, textarea')) {
+        e.preventDefault();
+        setPaused(!paused);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [paused, setPaused]);
+
+  const handleOpenWindow = (id: string) => {
+    if (!openWindows.includes(id)) {
+      setOpenWindows([...openWindows, id]);
+    }
+    setActiveWindowId(id);
+  };
+
+  const handleCloseWindow = (id: string) => {
+    setOpenWindows(openWindows.filter(w => w !== id));
+    if (activeWindowId === id) setActiveWindowId(null);
+    // Clear selections when closing windows
+    if (id === 'city-details') {
+      setSelectedCity(null);
+      setSecondCity(null);
+    }
+    if (id === 'route-details') setSelectedRouteId(null);
+  };
+
+  const handleOpenRouteDetails = (routeId: string) => {
+    setSelectedRouteId(routeId);
+    handleOpenWindow('route-details');
+  };
+
+  const handleOpenRouteCreation = (sourceId: string, targetId: string) => {
+    setPendingRouteCreation({ sourceId, targetId });
+    handleOpenWindow('routes');
+  };
+
+  const handleCityClick = (city: City) => {
+    // If in selection mode, handle selection callback
+    if (mapSelectionMode) {
+      mapSelectionMode.onSelect(city.id);
+      setMapSelectionMode(null); // Exit selection mode after selection
+      return;
+    }
+
+    // If city panel is already open, handle 2-city mode logic
+    if (openWindows.includes('city-details')) {
+      if (selectedCity && selectedCity.id !== city.id) {
+        // If clicking a different city, set it as second city (replacing any existing second city)
+        setSecondCity(city);
+        return;
+      }
+      // If clicking the primary city again, maybe do nothing or just focus window
+      setActiveWindowId('city-details');
+      return;
+    }
+
+    // Otherwise, show city details in single mode
+    setSelectedCity(city);
+    setSecondCity(null);
+    handleOpenWindow('city-details');
+  };
+
+  if (!gameStarted) {
+    return <MainMenu />;
+  }
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 text-slate-200 select-none font-sans">
+      <WorldMap 
+        onCityClick={handleCityClick} 
+        selectionMode={mapSelectionMode}
+        selectedCityIds={[selectedCity?.id, secondCity?.id].filter((id): id is string => !!id)}
+      />
+
+      <Dashboard onOpenWindow={handleOpenWindow} />
+
+      {/* Windows Layer */}
+      {openWindows.map(id => {
+        let title: React.ReactNode = '';
+        let content = null;
+        let widthClass = '';
+
+        switch (id) {
+          case 'fleet':
+            title = 'Fleet Management & Aircraft Market';
+            content = <FleetManager />;
+            widthClass = 'w-[800px]';
+            break;
+          case 'routes':
+            title = 'Route Network';
+            content = (
+              <RouteManager 
+                onRequestCitySelection={setMapSelectionMode} 
+                onOpenRouteDetails={handleOpenRouteDetails}
+                pendingRouteCreation={pendingRouteCreation}
+                onConsumePendingRouteCreation={() => setPendingRouteCreation(null)}
+              />
+            );
+            widthClass = 'w-[900px]';
+            break;
+          case 'finance':
+            title = 'Financial Report';
+            content = <FinancialReport />;
+            widthClass = '';
+            break;
+          case 'city-details':
+            title = secondCity && selectedCity
+              ? `Route: ${selectedCity.name} ↔ ${secondCity.name}`
+              : (selectedCity ? selectedCity.name : 'City Details');
+            content = selectedCity ? (
+              <CityDetails 
+                cityId={selectedCity.id} 
+                secondCityId={secondCity?.id || null}
+                onCancelSecondCity={() => setSecondCity(null)}
+                onOpenRouteDetails={handleOpenRouteDetails}
+                onOpenRouteCreation={handleOpenRouteCreation}
+              />
+            ) : null;
+            break;
+          case 'route-details':
+            title = 'Route Details & Configuration';
+            content = selectedRouteId ? <RouteDetails routeId={selectedRouteId} /> : null;
+            break;
+          case 'company':
+            title = 'Company Management';
+            content = <CompanyManagement />;
+            break;
+          case 'rivals':
+            title = 'Global Rankings';
+            content = <CompanyList />;
+            break;
+          case 'settings':
+            title = 'Settings';
+            content = (
+              <div className="space-y-4 w-[450px]">
+                <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+                  <span>Manual Save</span>
+                  <button
+                    onClick={() => saveGame()}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-1"
+                  >
+                    💾 Save Game
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span>Export Save (JSON)</span>
+                  <button
+                    onClick={() => {
+                      try {
+                        const data = getSaveData();
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        const dateStr = new Date(data.date).toISOString().split('T')[0];
+                        a.href = url;
+                        a.download = `sky-tycoon-save-${dateStr}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        addNotification('Exported save to JSON', 'success');
+                      } catch (e) {
+                        console.error('Failed to export save:', e);
+                        addNotification('Failed to export save', 'error');
+                      }
+                    }}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-xs font-bold"
+                  >
+                    ⬇ Export
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+                  <span>Auto Save Frequency</span>
+                  <select
+                    value={autoSaveFrequency}
+                    onChange={(e) => setAutoSaveFrequency(e.target.value as any)}
+                    className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600 focus:border-blue-500 outline-none"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Sandbox Mode (Unlock All Planes)</span>
+                  <button
+                    onClick={() => setDebugUnlockAll(!debugUnlockAll)}
+                    className={`w-12 h-6 rounded-full transition-colors ${debugUnlockAll ? 'bg-green-600' : 'bg-slate-600'} relative`}
+                  >
+                    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${debugUnlockAll ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500">Ignores introduction and retirement years for aircraft.</p>
+
+                {/* Debug Event Trigger */}
+                <div className="border-t border-slate-700 pt-4">
+                  <p className="text-sm font-semibold mb-2 text-yellow-400">🛠️ Debug Tools</p>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">Trigger Event by ID</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={debugEventId}
+                        onChange={(e) => setDebugEventId(e.target.value)}
+                        placeholder="e.g. welcome_1950"
+                        className="flex-1 bg-slate-700 text-white px-3 py-1 rounded text-sm border border-slate-600 focus:border-blue-500 outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          if (debugEventId.trim()) {
+                            triggerEvent(debugEventId.trim());
+                            // Show the event immediately
+                            setTimeout(() => showNextEvent(), 50);
+                            addNotification(`Triggered event: ${debugEventId}`, 'info');
+                            setDebugEventId('');
+                          } else {
+                            addNotification('Enter an event ID', 'error');
+                          }
+                        }}
+                        className="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-1 rounded text-xs font-bold"
+                      >
+                        🎲 Trigger
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Available: welcome_1950, oil_crisis_1973, excellent_ceo_hired
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+            break;
+          default:
+            return null;
+        }
+
+        const zIndex = activeWindowId === id ? 50 : 40;
+
+        return (
+          <GameWindow
+            key={id}
+            title={title}
+            onClose={() => handleCloseWindow(id)}
+            x={100 + (openWindows.indexOf(id) * 30)}
+            y={100 + (openWindows.indexOf(id) * 30)}
+            zIndex={zIndex}
+            onFocus={() => setActiveWindowId(id)}
+          >
+             <div className={`p-4 bg-slate-800 h-full overflow-auto ${widthClass}`}>
+                {content}
+             </div>
+          </GameWindow>
+        );
+      })}
+
+      <AudioManager />
+
+      {/* Settings Button */}
+      <button
+        onClick={() => handleOpenWindow('settings')}
+        className="fixed bottom-4 right-4 z-10 bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white p-3 rounded-lg border border-slate-700 transition-colors"
+        title="Settings"
+      >
+        <Settings size={20} />
+      </button>
+
+      {/* Notifications Toast */}
+      <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-[100] pointer-events-none">
+        {notifications.map(n => (
+          <div
+            key={n.id}
+            className={`bg-slate-800 text-white px-4 py-2 rounded shadow-lg border-l-4 pointer-events-auto animate-in slide-in-from-right-5 fade-in duration-300 ${
+              n.type === 'success' ? 'border-green-500' :
+              n.type === 'error' ? 'border-red-500' : 'border-blue-500'
+            }`}
+          >
+            {n.msg}
+          </div>
+        ))}
+      </div>
+
+      {/* Event System */}
+      <EventWindow />
+    </div>
+  );
+}
+
+export default App;
