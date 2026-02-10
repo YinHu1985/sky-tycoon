@@ -5,23 +5,32 @@ import { PLANE_TYPES } from '../data/planes.js';
 // Mock imports
 vi.mock('../data/planes.js', () => ({
   PLANE_TYPES: [
-    { id: 'efficient_plane', name: 'Efficient Jet', price: 1000, capacity: 100, fuelCost: 100, intro: 1950, end: 2000 }, // Ratio 1.0
-    { id: 'inefficient_plane', name: 'Gas Guzzler', price: 1000, capacity: 100, fuelCost: 300, intro: 1950, end: 2000 }, // Ratio 3.0
+    { id: 'efficient_plane', name: 'Efficient Jet', price: 1000, capacity: 100, fuelCost: 100, intro: 1950, end: 2000, range: 10000 }, 
+    { id: 'short_range_plane', name: 'Short Range', price: 1000, capacity: 100, fuelCost: 300, intro: 1950, end: 2000, range: 1000 },
+    { id: 'inefficient_plane', name: 'Gas Guzzler', price: 1000, capacity: 100, fuelCost: 300, intro: 1950, end: 2000, range: 10000 },
   ]
 }));
 
 vi.mock('../data/cities.js', () => ({
-  CITIES: []
+  CITIES: [
+    { id: 'nyc', name: 'New York', region: 'na' },
+    { id: 'lon', name: 'London', region: 'eu' }
+  ]
 }));
 
 vi.mock('./economy.js', () => ({
-  calculateFrequency: vi.fn(),
-  calculateOptimalRouteConfig: vi.fn()
+  calculateFrequency: vi.fn().mockReturnValue(10),
+  calculateOptimalRouteConfig: vi.fn().mockReturnValue({
+    profit: 1000,
+    recommendedFrequency: 7,
+    recommendedPriceModifer: 0,
+    canFly: true
+  })
 }));
 
 vi.mock('./utils.js', () => ({
-  calculateDistance: vi.fn(),
-  calculateFlightTime: vi.fn()
+  calculateDistance: vi.fn().mockReturnValue(5000),
+  calculateFlightTime: vi.fn().mockReturnValue(6)
 }));
 
 describe('AIController', () => {
@@ -36,6 +45,66 @@ describe('AIController', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('should attempt to open new route when planes are idle', () => {
+    const company = {
+      id: 'ai_1',
+      code: 'AI1',
+      hq: 'nyc',
+      money: 1000000,
+      fleet: { 'efficient_plane': 1 }, // 1 plane
+      routes: [], // 0 routes -> 1 > 0 -> open route
+      maintenanceEffort: 50,
+      serviceEffort: 50,
+      prBudget: 1000
+    };
+
+    const gameState = {
+      companies: [company],
+      playerCompanyId: 'player',
+      performAction: mockPerformAction,
+      date: mockDate
+    };
+
+    processAI(gameState);
+
+    // Should call ADD_ROUTE
+    expect(mockPerformAction).toHaveBeenCalledWith(
+      'ai_1',
+      'ADD_ROUTE',
+      expect.anything()
+    );
+  });
+
+  it('should fallback to buying better plane if no route found (requires date)', () => {
+    const company = {
+      id: 'ai_1',
+      code: 'AI1',
+      hq: 'nyc',
+      money: 1000000,
+      fleet: { 'short_range_plane': 1 }, // Range 1000, Dist 5000 -> Fail
+      routes: [], 
+      maintenanceEffort: 50,
+      serviceEffort: 50,
+      prBudget: 1000
+    };
+
+    const gameState = {
+      companies: [company],
+      playerCompanyId: 'player',
+      performAction: mockPerformAction,
+      date: mockDate
+    };
+
+    processAI(gameState);
+
+    // Should call BUY_PLANE for a better range plane
+    expect(mockPerformAction).toHaveBeenCalledWith(
+      'ai_1',
+      'BUY_PLANE',
+      expect.anything()
+    );
   });
 
   it('should prefer efficient planes when purchasing', () => {

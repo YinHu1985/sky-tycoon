@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../../store/useGameStore';
 import { CITIES } from '../../data/cities';
@@ -7,7 +7,7 @@ import { calculateDistance, formatMoney } from '../../lib/utils';
 import { calculateFrequency } from '../../lib/economy';
 import { Plus, Trash2, TrendingUp, TrendingDown, MapPin, Edit, Bot, ToggleLeft, ToggleRight, Minus } from 'lucide-react';
 
-export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => {
+export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails, pendingRouteCreation, onConsumePendingRouteCreation }) => {
   const { company, routes, fleet, addRoute, deleteRoute, updateRoute, lastRouteSourceId, setLastRouteSourceId } = useGameStore(useShallow(state => {
     const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
     return {
@@ -23,6 +23,19 @@ export const RouteManager = ({ onRequestCitySelection, onOpenRouteDetails }) => 
   }));
 
   const [isCreating, setIsCreating] = useState(false);
+
+  // Handle pending creation request
+  useEffect(() => {
+    if (pendingRouteCreation) {
+      setIsCreating(true);
+      setSourceId(pendingRouteCreation.sourceId);
+      setTargetId(pendingRouteCreation.targetId);
+      // Consume the request so it doesn't trigger again unless new request comes
+      if (onConsumePendingRouteCreation) {
+        onConsumePendingRouteCreation();
+      }
+    }
+  }, [pendingRouteCreation, onConsumePendingRouteCreation]);
 
   // New Route Form State
   const [sourceId, setSourceId] = useState('');

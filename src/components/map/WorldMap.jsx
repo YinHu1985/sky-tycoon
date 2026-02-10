@@ -6,7 +6,7 @@ import { MAP_IMAGE_URL } from '../../data/constants';
 import { MAP_WIDTH, MAP_HEIGHT, geoToPixel, getGreatCircleSegments } from '../../lib/utils';
 import { useGameStore } from '../../store/useGameStore';
 
-export const WorldMap = ({ onCityClick, selectionMode }) => {
+export const WorldMap = ({ onCityClick, selectionMode, selectedCityIds = [] }) => {
   const containerRef = useRef(null);
 
   // Calculate initial zoom to fit the world
@@ -201,6 +201,7 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
         const isAiHq = hqOwner && !isPlayerHq;
 
         const inSelectionMode = !!selectionMode;
+        const isSelected = selectedCityIds.includes(city.id);
 
         return (
           <div
@@ -208,17 +209,19 @@ export const WorldMap = ({ onCityClick, selectionMode }) => {
             className={`absolute rounded-full cursor-pointer hover:scale-150 transition-all ${
               inSelectionMode
                 ? 'bg-yellow-400 ring-4 ring-yellow-300 animate-pulse shadow-lg shadow-yellow-400/50'
-                : isPlayerHq
-                  ? 'bg-red-500 ring-2 ring-red-300 z-10'
-                  : isAiHq
-                    ? 'bg-purple-500 ring-1 ring-purple-300 z-10' // AI HQ
-                    : 'bg-cyan-400 hover:bg-cyan-300'
+                : isSelected
+                  ? 'bg-white ring-4 ring-blue-500 shadow-lg shadow-blue-500/50 z-20 scale-125'
+                  : isPlayerHq
+                    ? 'bg-red-500 ring-2 ring-red-300 z-10'
+                    : isAiHq
+                      ? 'bg-purple-500 ring-1 ring-purple-300 z-10' // AI HQ
+                      : 'bg-cyan-400 hover:bg-cyan-300'
             }`}
             style={{
               left: x - 4,
               top: y - 4,
-              width: inSelectionMode ? 10 : ((isPlayerHq || isAiHq) ? 8 : 6),
-              height: inSelectionMode ? 10 : ((isPlayerHq || isAiHq) ? 8 : 6)
+              width: inSelectionMode ? 10 : (isSelected ? 10 : ((isPlayerHq || isAiHq) ? 8 : 6)),
+              height: inSelectionMode ? 10 : (isSelected ? 10 : ((isPlayerHq || isAiHq) ? 8 : 6))
             }}
             onClick={(e) => {
               e.stopPropagation();

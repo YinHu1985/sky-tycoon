@@ -34,7 +34,7 @@ export function processAI(gameState) {
         // Let's say if we have idle planes, we try to route them.
         if (totalPlanes > totalRoutes) {
            if (totalRoutes < MAX_ROUTES_PER_COMPANY) {
-              openNewRoute(company, performAction);
+              openNewRoute(company, performAction, date);
            }
         } else {
            // We need more planes (if we have money AND haven't hit route limit)

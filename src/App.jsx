@@ -36,7 +36,9 @@ function App() {
   const [openWindows, setOpenWindows] = useState([]);
   const [activeWindowId, setActiveWindowId] = useState(null);
   const [selectedCity, setSelectedCity] = useState(null);
+  const [secondCity, setSecondCity] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [pendingRouteCreation, setPendingRouteCreation] = useState(null);
   const [mapSelectionMode, setMapSelectionMode] = useState(null); // { type: 'route', onSelect: (cityId) => void }
   const [debugEventId, setDebugEventId] = useState(''); // For debug event triggering
 
@@ -64,13 +66,21 @@ function App() {
     setOpenWindows(openWindows.filter(w => w !== id));
     if (activeWindowId === id) setActiveWindowId(null);
     // Clear selections when closing windows
-    if (id === 'city-details') setSelectedCity(null);
+    if (id === 'city-details') {
+      setSelectedCity(null);
+      setSecondCity(null);
+    }
     if (id === 'route-details') setSelectedRouteId(null);
   };
 
   const handleOpenRouteDetails = (routeId) => {
     setSelectedRouteId(routeId);
     handleOpenWindow('route-details');
+  };
+
+  const handleOpenRouteCreation = (sourceId, targetId) => {
+    setPendingRouteCreation({ sourceId, targetId });
+    handleOpenWindow('routes');
   };
 
   const handleCityClick = (city) => {
@@ -81,8 +91,21 @@ function App() {
       return;
     }
 
-    // Otherwise, show city details
+    // If city panel is already open, handle 2-city mode logic
+    if (openWindows.includes('city-details')) {
+      if (selectedCity && selectedCity.id !== city.id) {
+        // If clicking a different city, set it as second city (replacing any existing second city)
+        setSecondCity(city);
+        return;
+      }
+      // If clicking the primary city again, maybe do nothing or just focus window
+      setActiveWindowId('city-details');
+      return;
+    }
+
+    // Otherwise, show city details in single mode
     setSelectedCity(city);
+    setSecondCity(null);
     handleOpenWindow('city-details');
   };
 
@@ -92,7 +115,11 @@ function App() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950 text-slate-200 select-none font-sans">
-      <WorldMap onCityClick={handleCityClick} selectionMode={mapSelectionMode} />
+      <WorldMap 
+        onCityClick={handleCityClick} 
+        selectionMode={mapSelectionMode}
+        selectedCityIds={[selectedCity?.id, secondCity?.id].filter(Boolean)}
+      />
 
       <Dashboard onOpenWindow={handleOpenWindow} />
 
@@ -108,15 +135,32 @@ function App() {
             break;
           case 'routes':
             title = 'Route Network';
-            content = <RouteManager onRequestCitySelection={setMapSelectionMode} onOpenRouteDetails={handleOpenRouteDetails} />;
+            content = (
+              <RouteManager 
+                onRequestCitySelection={setMapSelectionMode} 
+                onOpenRouteDetails={handleOpenRouteDetails}
+                pendingRouteCreation={pendingRouteCreation}
+                onConsumePendingRouteCreation={() => setPendingRouteCreation(null)}
+              />
+            );
             break;
           case 'finance':
             title = 'Financial Report';
             content = <FinancialReport />;
             break;
           case 'city-details':
-            title = selectedCity ? selectedCity.name : 'City Details';
-            content = selectedCity ? <CityDetails cityId={selectedCity.id} /> : null;
+            title = secondCity 
+              ? `Route: ${selectedCity.name} ↔ ${secondCity.name}`
+              : (selectedCity ? selectedCity.name : 'City Details');
+            content = selectedCity ? (
+              <CityDetails 
+                cityId={selectedCity.id} 
+                secondCityId={secondCity?.id}
+                onCancelSecondCity={() => setSecondCity(null)}
+                onOpenRouteDetails={handleOpenRouteDetails}
+                onOpenRouteCreation={handleOpenRouteCreation}
+              />
+            ) : null;
             break;
           case 'route-details':
             title = 'Route Details & Configuration';

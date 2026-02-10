@@ -52,7 +52,7 @@ export const calculateFlightRouteIncome = (company, route) => {
   const weeklyCapacity = route.frequency * type.capacity * 2;
 
   // 3. Occupancy with Load Factor Modifiers
-  const basePassengers = Math.min(weeklyCapacity, realDemand);
+  const basePassengers = Math.floor(Math.min(weeklyCapacity, realDemand));
   let baseLoadFactor = weeklyCapacity > 0 ? basePassengers / weeklyCapacity : 0;
 
   // Apply load factor modifiers (fame, relationship, properties, events)
@@ -65,7 +65,7 @@ export const calculateFlightRouteIncome = (company, route) => {
   const modifiedLoadFactor = Math.min(1.0, applyModifiers(baseLoadFactor, loadFactorMods));
 
   // Recalculate passengers with modified load factor
-  const passengers = Math.min(weeklyCapacity, weeklyCapacity * modifiedLoadFactor);
+  const passengers = Math.floor(Math.min(weeklyCapacity, weeklyCapacity * modifiedLoadFactor));
   const loadFactor = modifiedLoadFactor;
 
   // 4. Revenue with Modifiers

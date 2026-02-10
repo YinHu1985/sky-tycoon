@@ -5,11 +5,62 @@ import { CITIES } from '../../data/cities';
 import { PLANE_TYPES } from '../../data/planes';
 import { PROPERTY_TYPES } from '../../data/properties';
 import { calculateCityRelationship, getCityAttributes } from '../../lib/modifiers';
-import { formatMoney } from '../../lib/utils';
-import { Building, Plane, Heart, Building2, Briefcase, Plus, Bus, UtensilsCrossed, Wrench, X } from 'lucide-react';
+import { formatMoney, calculateDistance } from '../../lib/utils';
+import { Building, Plane, Heart, Building2, Briefcase, Plus, Bus, UtensilsCrossed, Wrench, X, MapPin, ArrowRightLeft, Route } from 'lucide-react';
 
-export const CityDetails = ({ cityId }) => {
+// Helper component for simplified city view
+const CitySummary = ({ city, company }) => {
+  // Calculate relationship
+  const relationship = calculateCityRelationship(company, city.id);
+  // Calculate effective attributes
+  const { biz, tour } = getCityAttributes(company, city);
+
+  return (
+    <div className="bg-slate-800 rounded-lg overflow-hidden border border-slate-700 relative group">
+      {/* Background Image with Overlay */}
+      <div className="absolute inset-0 z-0">
+        {city.image ? (
+          <img
+            src={city.image}
+            alt={city.name}
+            className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity"
+          />
+        ) : (
+          <div className="w-full h-full bg-slate-800" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/80 to-transparent" />
+      </div>
+
+      <div className="relative z-10 p-3">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <MapPin size={16} className="text-sky-400" />
+            {city.name}
+          </h3>
+          <div className="flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded text-xs border border-slate-700">
+            <Heart size={12} className="text-pink-400" />
+            <span className="text-pink-100 font-bold">{relationship.toFixed(0)}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-900/80 p-1.5 rounded border border-slate-700">
+            <div className="text-slate-400 uppercase text-[10px]">Business</div>
+            <div className="font-bold text-sky-400 text-sm">{Math.round(biz)}</div>
+          </div>
+          <div className="bg-slate-900/80 p-1.5 rounded border border-slate-700">
+            <div className="text-slate-400 uppercase text-[10px]">Tourism</div>
+            <div className="font-bold text-pink-400 text-sm">{Math.round(tour)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const CityDetails = ({ cityId, secondCityId, onCancelSecondCity, onOpenRouteDetails, onOpenRouteCreation }) => {
   const city = CITIES.find(c => c.id === cityId);
+  const secondCity = secondCityId ? CITIES.find(c => c.id === secondCityId) : null;
 
   const { company, routes, buyProperty, sellProperty } = useGameStore(useShallow(state => {
     const playerCompany = state.companies.find(c => c.id === state.playerCompanyId);
@@ -17,21 +68,107 @@ export const CityDetails = ({ cityId }) => {
       company: playerCompany,
       routes: playerCompany ? playerCompany.routes : [],
       buyProperty: state.buyProperty,
-      sellProperty: state.sellProperty
+      sellProperty: state.sellProperty,
     };
   }));
 
   if (!city) return null;
 
+  // --- Two City Mode ---
+  if (secondCity) {
+    const distance = calculateDistance(city, secondCity);
+    
+    // Find existing route between these cities
+    const existingRoute = routes.find(r => 
+      (r.sourceId === city.id && r.targetId === secondCity.id) || 
+      (r.sourceId === secondCity.id && r.targetId === city.id)
+    );
+
+    return (
+      <div className="w-[350px] flex flex-col gap-3">
+        {/* City 1 (Primary) */}
+        <div className="relative">
+           <div className="absolute -left-2 top-1/2 -translate-y-1/2 -translate-x-full">
+             <div className="bg-blue-600 text-xs font-bold px-2 py-1 rounded text-white rotate-[-90deg]">ORIGIN</div>
+           </div>
+           <CitySummary city={city} company={company} />
+        </div>
+
+        {/* Connection Info */}
+        <div className="bg-slate-700/50 p-3 rounded border border-slate-600 flex flex-col items-center gap-2 relative">
+          
+          <div className="flex items-center gap-4 text-slate-300 text-sm">
+             <span className="font-mono text-white">{distance} km</span>
+             <ArrowRightLeft size={16} className="text-slate-500" />
+             <span className="text-xs text-slate-400">Direct Distance</span>
+          </div>
+
+          {existingRoute ? (
+            <div className="w-full bg-slate-800 p-2 rounded border border-green-900/50">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs text-green-400 font-bold flex items-center gap-1">
+                  <Plane size={12} /> Active Route
+                </span>
+                <button 
+                  onClick={() => onOpenRouteDetails(existingRoute.id)}
+                  className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-0.5 rounded border border-slate-600"
+                >
+                  View Details
+                </button>
+              </div>
+              <div className="flex justify-between text-xs text-slate-300">
+                 <span>{existingRoute.frequency} flights/wk</span>
+                 <span className={existingRoute.stats?.profitLastWeek >= 0 ? 'text-green-400' : 'text-red-400'}>
+                   {formatMoney(existingRoute.stats?.profitLastWeek || 0)}
+                 </span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 italic">No direct route established</div>
+          )}
+          
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2 w-full mt-1">
+            <button
+              onClick={onCancelSecondCity}
+              className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors"
+            >
+              <X size={14} /> Cancel Selection
+            </button>
+            
+            {!existingRoute && (
+               <button
+                 onClick={() => onOpenRouteCreation && onOpenRouteCreation(city.id, secondCity.id)}
+                 className={`bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded text-xs font-bold flex items-center justify-center gap-1 transition-colors ${!onOpenRouteCreation ? 'opacity-50 cursor-not-allowed' : ''}`}
+                 disabled={!onOpenRouteCreation}
+               >
+                 <Plus size={14} /> Create Route
+               </button>
+            )}
+          </div>
+          
+          {!existingRoute && !onOpenRouteCreation && (
+            <div className="text-[10px] text-slate-500 text-center w-full">
+              Open "Route Network" to create a new route.
+            </div>
+          )}
+        </div>
+
+        {/* City 2 (Target) */}
+        <div className="relative">
+           <div className="absolute -left-2 top-1/2 -translate-y-1/2 -translate-x-full">
+             <div className="bg-amber-600 text-xs font-bold px-2 py-1 rounded text-white rotate-[-90deg]">TARGET</div>
+           </div>
+           <CitySummary city={secondCity} company={company} />
+        </div>
+      </div>
+    );
+  }
+
+  // --- Single City Mode (Original Code) ---
   const cityRoutes = routes.filter(r => r.sourceId === cityId || r.targetId === cityId);
-
-  // Calculate relationship
   const relationship = calculateCityRelationship(company, cityId);
-
-  // Calculate effective attributes
   const { biz, tour } = getCityAttributes(company, city);
-
-  // Get properties in this city
   const cityProperties = company.properties ? company.properties.filter(p => p.cityId === cityId) : [];
 
   const handleBuyProperty = (propertyType) => {
